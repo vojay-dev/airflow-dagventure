@@ -199,7 +199,7 @@ class GameScene extends Phaser.Scene {
       }
     }
 
-    // +50 buffer slots so new DAGs can appear without a full world rebuild
+    // +50 buffer slots so new Dags can appear without a full world rebuild
     const spots = this.gen.getLandSpots(dags.length + 1 + 50);
     this._allSpots    = spots;
     this._nextSpotIdx = dags.length + 1;

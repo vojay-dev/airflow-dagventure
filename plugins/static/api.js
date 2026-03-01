@@ -2,10 +2,7 @@
 
 /**
  * Wrapper around the Dagventure backend API.
- *
- * All Airflow operations are now handled server-side via apache-airflow-client.
- * The game page lives at /dagventure/game, so the relative base "api/"
- * resolves to /dagventure/api/ on any deployment.
+ * All Airflow operations are handled server-side via the Airflow REST API v2.
  */
 const AirflowApi = (() => {
   const BASE = 'api';

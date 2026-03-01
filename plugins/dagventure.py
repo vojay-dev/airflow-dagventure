@@ -26,7 +26,7 @@ PLUGIN_DIR = Path(__file__).parent
 STATIC_DIR = PLUGIN_DIR / "static"
 ASSETS_DIR = PLUGIN_DIR / "assets"
 
-# Stamped at plugin load — forces browsers to re-fetch JS/CSS after a restart.
+# Forces browsers to re-fetch JS/CSS after a restart.
 _BUILD_TS = str(int(time.time()))
 
 AIRFLOW_HOST     = os.environ.get("DAGVENTURE_HOST",     "http://localhost:8080")
@@ -51,7 +51,7 @@ def _fetch_fresh_token() -> str:
 
 
 def _get_token() -> str:
-    """Return a valid JWT, refreshing if expired (thread-safe, double-checked locking)."""
+    """Return a valid JWT, refreshing if expired."""
     global _cached_token, _token_expires_at
 
     now = time.monotonic()
@@ -84,10 +84,9 @@ def _state_str(value) -> str | None:
         return None
     return value.value if hasattr(value, "value") else str(value)
 
-
-# ---------------------------------------------------------------------------
 # FastAPI app
 # ---------------------------------------------------------------------------
+
 app = FastAPI(title="Dagventure")
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
@@ -101,8 +100,6 @@ async def serve_game():
     html = html.replace("__BUILD_TS__", _BUILD_TS)
     return HTMLResponse(content=html)
 
-
-# ---------------------------------------------------------------------------
 # Read endpoints
 # ---------------------------------------------------------------------------
 
@@ -226,8 +223,6 @@ async def api_get_task_log(dag_id: str, run_id: str, task_id: str, try_number: i
 
     return "\n".join(lines) if lines else "(no log output)"
 
-
-# ---------------------------------------------------------------------------
 # Mutation endpoints
 # ---------------------------------------------------------------------------
 
@@ -281,9 +276,7 @@ async def api_delete_dag(dag_id: str):
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc))
 
-
-# ---------------------------------------------------------------------------
-# Plugin registration
+# Plugin setup
 # ---------------------------------------------------------------------------
 
 class DagventurePlugin(AirflowPlugin):

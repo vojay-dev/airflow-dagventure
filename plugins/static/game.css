@@ -14,7 +14,7 @@ body {
   height: 100vh;
 }
 
-/* Subtle CRT scanlines — retro pixel feel */
+/* CRT scanlines */
 #root::after {
   content: '';
   position: absolute;
@@ -48,7 +48,7 @@ body {
   z-index: 50;
 }
 
-/* ── DAG counter (top-left) — carved stone panel ── */
+/* Dag counter (top-left) */
 #hud-dags-panel {
   border: 24px solid transparent;
   border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
@@ -67,7 +67,7 @@ body {
   text-shadow: 1px 1px 0 rgba(255,255,255,0.45);
 }
 
-/* ── Controls hint (top-right) — carved stone, always visible ── */
+/* Controls hint (top-right) */
 #hud-hint-panel {
   border: 24px solid transparent;
   border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
@@ -88,7 +88,7 @@ body {
   white-space: nowrap;
 }
 
-/* ── Day/night time indicator (bottom-centre) ── */
+/* Day/night time indicator (bottom-centre) */
 #time-hud {
   position: absolute;
   bottom: 16px;
@@ -99,10 +99,8 @@ body {
   gap: 10px;
   pointer-events: none;
   z-index: 50;
-  /* Dark pixel-art panel — stretch the uniform dark centre */
   background: url('../assets/ui/more/healthbarpanel_160x41.png') no-repeat center / 100% 100%;
   padding: 6px 14px;
-  /* min-width keeps the panel from being too narrow */
   min-width: 230px;
 }
 
@@ -113,7 +111,6 @@ body {
   display: block;
   flex-shrink: 0;
   opacity: 1;
-  /* Glow so icons pop against the dark panel */
   filter: drop-shadow(0 0 4px rgba(255, 230, 100, 0.9));
 }
 
@@ -124,7 +121,7 @@ body {
   position: relative;
 }
 
-/* Gold-bordered circle marker — easy to read on the dark panel */
+/* Gold-bordered circle marker */
 #time-marker {
   width: 22px;
   height: 22px;
@@ -136,7 +133,7 @@ body {
   image-rendering: pixelated;
 }
 
-/* Phase label — fades in above the time bar */
+/* Phase label */
 #time-label {
   position: absolute;
   bottom: 76px;
@@ -153,7 +150,7 @@ body {
   z-index: 50;
 }
 
-/* ── Toast notification ── */
+/* Toast notification */
 #toast {
   position: absolute;
   top: 110px;
@@ -168,7 +165,6 @@ body {
   white-space: nowrap;
   pointer-events: none;
   z-index: 50;
-  /* default (danger) */
   background: url('../assets/ui/ribbons/ribbon_red_3slides.png') no-repeat center / 100% 100%;
 }
 
@@ -244,7 +240,7 @@ body {
 .panel-title.ribbon-blue { background-image: url('../assets/ui/ribbons/ribbon_blue_3slides.png'); }
 .panel-title.ribbon-red { background-image: url('../assets/ui/ribbons/ribbon_red_3slides.png'); }
 .panel-title.ribbon-yellow { background-image: url('../assets/ui/ribbons/ribbon_yellow_3slides.png'); }
-.panel-title.ribbon-green { 
+.panel-title.ribbon-green {
   background-image: url('../assets/ui/ribbons/ribbon_blue_3slides.png');
   filter: hue-rotate(100deg) brightness(1.1) saturate(1.2);
 }
