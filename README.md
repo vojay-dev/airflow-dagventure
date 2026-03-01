@@ -1,6 +1,6 @@
 # Dagventure
 
-An Airflow 3 plugin that turns your DAG list into a playable pixel-art world. Every active DAG becomes a building on a procedurally generated island. Walk your knight around, trigger pipeline runs, read task logs, pause workflows, and destroy broken pipelines with a sword.
+An Airflow 3 plugin that turns your Dag list into a playable pixel-art world. Every active Dag becomes a building on a procedurally generated island. Walk your knight around, trigger pipeline runs, read task logs, pause workflows, and destroy broken pipelines with a sword.
 
 ```
 [ Browser: Phaser 3 game ]
@@ -79,7 +79,7 @@ After restart, a **"Dagventure"** entry appears in the Airflow navigation bar. C
 http://localhost:8080/dagventure/game
 ```
 
-The game loads your live DAG list and builds the world. If the API is unreachable (e.g. running the HTML file outside Airflow), a demo world with 15 placeholder DAGs is shown instead.
+The game loads your live Dag list and builds the world. If the API is unreachable (e.g. running the HTML file outside Airflow), a demo world with 15 placeholder Dags is shown instead.
 
 ---
 
@@ -88,9 +88,9 @@ The game loads your live DAG list and builds the world. If the API is unreachabl
 | Key | Action |
 |-----|--------|
 | `WASD` / Arrow keys | Move the knight |
-| `E` | Interact — opens the DAG menu when near a building, or talks to the goblin worker when the DAG is running |
+| `E` | Interact — opens the Dag menu when near a building, or talks to the goblin worker when the Dag is running |
 | `Space` | Attack — deals 1 HP to the nearest building or sheep within range |
-| `ESC` | Close log modal (first press), then close DAG menu (second press) |
+| `ESC` | Close log modal (first press), then close Dag menu (second press) |
 
 ---
 
@@ -207,13 +207,13 @@ Airflow 3 uses **structured logging**: instead of returning a plain text file, t
 | `GET` | `/dagventure/game` | Serves `game.html` |
 | `GET` | `/dagventure/static/*` | Serves JS/CSS files |
 | `GET` | `/dagventure/assets/*` | Serves pixel art assets |
-| `GET` | `/dagventure/api/dags` | Lists DAGs (proxied from Airflow) |
-| `GET` | `/dagventure/api/dags/{id}/runs` | Lists DAG runs |
+| `GET` | `/dagventure/api/dags` | Lists Dags (proxied from Airflow) |
+| `GET` | `/dagventure/api/dags/{id}/runs` | Lists Dag runs |
 | `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks` | Lists task instances |
 | `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks/{task}/logs/{n}` | Task log (formatted) |
 | `POST` | `/dagventure/api/dags/{id}/trigger` | Triggers a new run |
 | `PATCH` | `/dagventure/api/dags/{id}/pause` | Pauses or unpauses |
-| `DELETE` | `/dagventure/api/dags/{id}` | Deletes a DAG |
+| `DELETE` | `/dagventure/api/dags/{id}` | Deletes a Dag |
 
 ### State normalization
 
@@ -413,11 +413,11 @@ This allows the chat bubble above each building to grow and shrink based on text
 
 ## How the Procedural Map is Generated
 
-The map is generated fresh every time the game loads (or when the DAG count changes). The process happens entirely in `map-generator.js` and uses no external libraries.
+The map is generated fresh every time the game loads (or when the Dag count changes). The process happens entirely in `map-generator.js` and uses no external libraries.
 
 ### Step 1: Size the grid
 
-The map is a 2D grid of cells, each 64×64 pixels. The grid starts as all water (every cell = `0`). Its dimensions scale with the number of DAGs:
+The map is a 2D grid of cells, each 64×64 pixels. The grid starts as all water (every cell = `0`). Its dimensions scale with the number of Dags:
 
 ```javascript
 const islandsCount = Math.max(1, Math.ceil(numDags / 3));
@@ -426,7 +426,7 @@ this.rows = 40 + islandsCount * 8;
 this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
 ```
 
-For 12 DAGs: 4 islands, 108 columns × 72 rows → a 6912×4608 pixel world.
+For 12 Dags: 4 islands, 108 columns × 72 rows → a 6912×4608 pixel world.
 
 ### Step 2: Place island blobs
 
@@ -524,7 +524,7 @@ getLandSpots(count) {
 }
 ```
 
-The minimum-distance check prevents buildings from overlapping or being placed side-by-side. `_initWorld()` requests `dags.length + 51` spots: one for the player spawn, one per DAG, and 50 extras buffered so new DAGs that appear between world rebuilds can be placed without regenerating the entire map.
+The minimum-distance check prevents buildings from overlapping or being placed side-by-side. `_initWorld()` requests `dags.length + 51` spots: one for the player spawn, one per Dag, and 50 extras buffered so new Dags that appear between world rebuilds can be placed without regenerating the entire map.
 
 ---
 
@@ -582,7 +582,7 @@ const STATE_RIBBON = {
 };
 ```
 
-`getSpriteForDag(dag)` is also here — it maps a DAG's tags and state to the correct building texture key:
+`getSpriteForDag(dag)` is also here — it maps a Dag's tags and state to the correct building texture key:
 
 ```javascript
 function getSpriteForDag(dag) {
@@ -624,7 +624,7 @@ The module is wrapped in an IIFE (Immediately Invoked Function Expression) — t
 
 Contains three classes:
 
-**`ChatBubble`** — a floating speech bubble above each building showing the DAG state. Built with a NineSlice ribbon and a text object:
+**`ChatBubble`** — a floating speech bubble above each building showing the Dag state. Built with a NineSlice ribbon and a text object:
 
 ```javascript
 class ChatBubble extends Phaser.GameObjects.Container {
@@ -637,9 +637,9 @@ class ChatBubble extends Phaser.GameObjects.Container {
 }
 ```
 
-**`DagBuilding`** — wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the DAG is running, and manages smoke particle emitters. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
+**`DagBuilding`** — wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the Dag is running, and manages smoke particle emitters. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
 
-**`Sheep`** — a wandering NPC. Uses a timer event (`scene.time.addEvent`) to periodically pick a random velocity and switch between idle and walk animations. If killed three times total, all DAGs are deleted.
+**`Sheep`** — a wandering NPC. Uses a timer event (`scene.time.addEvent`) to periodically pick a random velocity and switch between idle and walk animations. If killed three times total, all Dags are deleted.
 
 The module-level helper `_spawnDamageText(scene, x, y)` is shared by both `DagBuilding` and `Sheep` to avoid duplicating the floating `-1` animation logic.
 
@@ -648,8 +648,8 @@ The module-level helper `_spawnDamageText(scene, x, y)` is shared by both `DagBu
 `GameScene` extends `Phaser.Scene` and is the heart of the game. Key methods:
 
 - **`preload()`** — loads all assets
-- **`create()`** — sets up input handlers, starts the 10-second DAG polling timer, calls `_fetchDags()` immediately
-- **`_fetchDags()`** — fetches all DAGs + their latest runs in parallel, normalizes states, then either builds the world from scratch (first load) or updates existing buildings incrementally (subsequent polls)
+- **`create()`** — sets up input handlers, starts the 10-second Dag polling timer, calls `_fetchDags()` immediately
+- **`_fetchDags()`** — fetches all Dags + their latest runs in parallel, normalizes states, then either builds the world from scratch (first load) or updates existing buildings incrementally (subsequent polls)
 - **`_initWorld(dags)`** — tears down and rebuilds the entire Phaser scene: generates the map, places tiles, spawns buildings, spawns the player and sheep, sets up cameras
 - **`update()`** — called every frame: handles movement input, Y-sorts sprites, drifts clouds, finds the nearest building within interact range, advances the day/night cycle
 - **`_repositionHud()`** — called from `update()` to keep screen-space UI anchored correctly on window resize
@@ -663,7 +663,7 @@ The module-level helper `_spawnDamageText(scene, x, y)` is shared by both `DagBu
 
 The game's menus and log panels are regular HTML/CSS elements, not Phaser objects. `ui.js` bridges the Phaser game world (JavaScript) with the DOM (HTML):
 
-- **`openMenu(dag)`** — shows the DAG interaction panel with Trigger/Pause/Unpause buttons
+- **`openMenu(dag)`** — shows the Dag interaction panel with Trigger/Pause/Unpause buttons
 - **`openConversation(dag)`** — shows the goblin dialogue panel with task instance list
 - **`viewLog(dagId, runId, taskId, tryNumber)`** — fetches formatted log text, runs it through a custom `highlight.js` syntax highlighter that colors timestamps, log levels, error keywords, and Python file paths, then injects the highlighted HTML into the log modal
 - Boots `new Phaser.Game(...)` after `document.fonts.ready` resolves (prevents the pixel font from flashing as a fallback font on the first frame)
@@ -672,7 +672,7 @@ The game's menus and log panels are regular HTML/CSS elements, not Phaser object
 
 ## Game Mechanics in Depth
 
-### The 10-second DAG polling loop
+### The 10-second Dag polling loop
 
 On load, `_fetchDags()` is called immediately. It's also scheduled to run every 10 seconds:
 
@@ -685,7 +685,7 @@ this.time.addEvent({
 });
 ```
 
-Each call fetches the full DAG list, then fires parallel requests for the latest run of each DAG:
+Each call fetches the full Dag list, then fires parallel requests for the latest run of each Dag:
 
 ```javascript
 const runResults = await Promise.all(
@@ -693,12 +693,12 @@ const runResults = await Promise.all(
 );
 ```
 
-`Promise.all` fires all the requests simultaneously and waits for all of them to complete. For 12 DAGs this means 13 requests (1 for the list + 12 for runs) happen concurrently rather than one-at-a-time.
+`Promise.all` fires all the requests simultaneously and waits for all of them to complete. For 12 Dags this means 13 requests (1 for the list + 12 for runs) happen concurrently rather than one-at-a-time.
 
 The response is then diffed against the current world state:
-- If a DAG changed state → update the building's sprite and chat bubble
-- If a DAG was deleted externally → destroy the building
-- If a new DAG appeared → find a free spot from the pre-buffered spot list and place a new building
+- If a Dag changed state → update the building's sprite and chat bubble
+- If a Dag was deleted externally → destroy the building
+- If a new Dag appeared → find a free spot from the pre-buffered spot list and place a new building
 
 ### Combat system
 
@@ -714,7 +714,7 @@ this.buildings.forEach(building => {
 });
 ```
 
-Buildings and sheep each have 3 HP, shown as heart icons (visible only when you're close or during combat). Three hits destroy a building, triggering an explosion animation and a `DELETE api/dags/{id}` call to the plugin backend (which then deletes the DAG from Airflow).
+Buildings and sheep each have 3 HP, shown as heart icons (visible only when you're close or during combat). Three hits destroy a building, triggering an explosion animation and a `DELETE api/dags/{id}` call to the plugin backend (which then deletes the Dag from Airflow).
 
 ### The interaction radius and bracket indicators
 
@@ -782,9 +782,9 @@ This keeps the player's actual speed constant regardless of direction.
 
 ## Visual Effects
 
-### Toast notifications for DAG state changes
+### Toast notifications for Dag state changes
 
-Every time `_fetchDags()` runs, it compares the new DAG states against a cached snapshot from the previous poll (`_dagStateCache`). If any DAG just transitioned into `failed` or `success`, a toast banner appears:
+Every time `_fetchDags()` runs, it compares the new Dag states against a cached snapshot from the previous poll (`_dagStateCache`). If any Dag just transitioned into `failed` or `success`, a toast banner appears:
 
 ```javascript
 if (this._dagStateCache) {
@@ -817,9 +817,9 @@ function _spawnDamageText(scene, x, y) {
 
 The `depth + 9999` ensures the text floats above everything else in the scene. Setting `ease: 'Power2'` makes the text start fast and decelerate, mimicking the physics of something being flung upward.
 
-### Smoke particles over running DAGs
+### Smoke particles over running Dags
 
-When a DAG enters the `running` state, `_startSmoke()` creates a particle emitter above the building's chimney position. Particles are small grey pixels that rise, spread, and scale up as they fade out — simulating a smoke puff:
+When a Dag enters the `running` state, `_startSmoke()` creates a particle emitter above the building's chimney position. Particles are small grey pixels that rise, spread, and scale up as they fade out — simulating a smoke puff:
 
 ```javascript
 this._smokeEmitter = this.scene.add.particles(this.wx, chimneyY, 'smoke_pixel', {
@@ -831,7 +831,7 @@ this._smokeEmitter = this.scene.add.particles(this.wx, chimneyY, 'smoke_pixel', 
 });
 ```
 
-The `smoke_pixel` texture is a 4×4 grey square generated at runtime via `Graphics.generateTexture()` — no image asset needed. When the DAG stops running, `_stopSmoke()` destroys the emitter.
+The `smoke_pixel` texture is a 4×4 grey square generated at runtime via `Graphics.generateTexture()` — no image asset needed. When the Dag stops running, `_stopSmoke()` destroys the emitter.
 
 ### Day/night cycle and dynamic light sources
 
@@ -1011,19 +1011,19 @@ The server replaces `__BUILD_TS__` with the actual timestamp. The browser sees a
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/dagventure/api/dags` | Lists all active DAGs |
-| `GET` | `/dagventure/api/dags/{id}/runs` | Latest DAG runs |
+| `GET` | `/dagventure/api/dags` | Lists all active Dags |
+| `GET` | `/dagventure/api/dags/{id}/runs` | Latest Dag runs |
 | `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks` | Task instances for a run |
 | `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks/{task}/logs/{n}` | Formatted task log text |
-| `POST` | `/dagventure/api/dags/{id}/trigger` | Trigger a new DAG run |
-| `PATCH` | `/dagventure/api/dags/{id}/pause?is_paused=true` | Pause or unpause a DAG |
-| `DELETE` | `/dagventure/api/dags/{id}` | Delete a DAG |
+| `POST` | `/dagventure/api/dags/{id}/trigger` | Trigger a new Dag run |
+| `PATCH` | `/dagventure/api/dags/{id}/pause?is_paused=true` | Pause or unpause a Dag |
+| `DELETE` | `/dagventure/api/dags/{id}` | Delete a Dag |
 
 ### Airflow REST API v2 (called by the backend)
 
 | Action | Method + Path |
 |--------|--------------|
-| List DAGs | `GET /api/v2/dags?limit=100` |
+| List Dags | `GET /api/v2/dags?limit=100` |
 | Latest run | `GET /api/v2/dags/{id}/dagRuns?limit=1&order_by=-start_date` |
 | Trigger run | `POST /api/v2/dags/{id}/dagRuns` body `{}` |
 | Pause/unpause | `PATCH /api/v2/dags/{id}` body `{"is_paused": true/false}` |
