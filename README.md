@@ -27,9 +27,10 @@ An Airflow 3 plugin that turns your DAG list into a playable pixel-art world. Ev
 7. [How the Procedural Map is Generated](#how-the-procedural-map-is-generated)
 8. [Architecture: File by File](#architecture-file-by-file)
 9. [Game Mechanics in Depth](#game-mechanics-in-depth)
-10. [The Backend: dagventure.py Explained](#the-backend-dagventurepy-explained)
-11. [API Reference](#api-reference)
-12. [Asset Credits](#asset-credits)
+10. [Visual Effects](#visual-effects)
+11. [The Backend: dagventure.py Explained](#the-backend-dagventurepy-explained)
+12. [API Reference](#api-reference)
+13. [Asset Credits](#asset-credits)
 
 ---
 
@@ -160,17 +161,13 @@ The plugin inherits the Airflow session. A user who has already logged into the 
 
 ## How the Frontend Communicates with Airflow
 
-### The two paths: direct fetch vs. backend proxy
+### All calls go through the plugin backend
 
-The game uses **two different mechanisms** depending on which operation it's doing.
-
-**1. DAG management (trigger, pause, list, delete) — direct fetch from the browser**
-
-The game frontend calls the Airflow REST API v2 directly from JavaScript using `fetch()`. Because the game page is served by Airflow itself (same origin), the browser's session cookie is sent automatically:
+The game frontend never talks to Airflow's API server directly. Every call goes to the plugin's own endpoints, which then call Airflow internally using the `apache-airflow-client` Python library with a cached JWT token. This gives the plugin control over the response shape — normalizing state enums, reformatting structured log output, etc.
 
 ```javascript
-// In api.js — the AirflowApi wrapper
-const BASE = 'api';  // relative URL, resolves to /dagventure/api/
+// In api.js
+const BASE = 'api';  // relative URL — resolves to /dagventure/api/
 
 async function getDags(limit = 100) {
   const response = await fetch(`${BASE}/dags?limit=${limit}`);
@@ -179,11 +176,11 @@ async function getDags(limit = 100) {
 }
 ```
 
-Wait — that's calling `/dagventure/api/dags`, not `/api/v2/dags`. That's because all DAG calls are proxied through the plugin backend, which then talks to Airflow's API server using the `apache-airflow-client` Python library with a JWT token. This gives the plugin more control over the response shape (normalizing state fields, formatting log messages, etc.).
+The browser fetches `/dagventure/api/dags`. The plugin backend handles that request, calls Airflow, and returns a normalized JSON response.
 
-**2. Task logs — proxied through the plugin backend**
+### Task logs: structured log parsing
 
-Logs use the same proxy path. The frontend calls:
+The log endpoint does more work than the others. The frontend calls:
 
 ```javascript
 await fetch(`api/dags/${dagId}/runs/${runId}/tasks/${taskId}/logs/${tryNumber}`)
@@ -401,21 +398,6 @@ update() {
 
 Static objects (buildings, trees, decorations) have their depth set once at creation time since they never move.
 
-### The TileSprite for animated water
-
-The ocean background is not a static image — it scrolls slowly to simulate moving water. Phaser's `TileSprite` repeats a texture across an area and lets you offset the texture position each frame:
-
-```javascript
-// Create a tile sprite that fills the entire world
-this.waterBg = this.add.tileSprite(0, 0, worldWidth, worldHeight, 'water').setOrigin(0);
-
-// In update() — shift the texture a tiny bit each frame
-this.waterBg.tilePositionX += 0.4;
-this.waterBg.tilePositionY += 0.2;
-```
-
-No animation frames needed — the tile just scrolls continuously.
-
 ### The NineSlice for UI panels
 
 Pixel-art UI panels need to scale without distorting the corners (which have decorative detail). Phaser's `NineSlice` object divides an image into a 3×3 grid: the four corners are never scaled, the four edges stretch along one axis only, and the center stretches in both directions.
@@ -561,7 +543,7 @@ plugins/
 │   └── deco/              ← Decorative objects 01–18
 └── static/                ← Frontend (served at /dagventure/static/)
     ├── game.html          ← Entry point — loads Phaser CDN + scripts in order
-    ├── constants.js       ← Shared constants and lookup tables
+    ├── constants.js       ← Shared constants and state lookup tables
     ├── api.js             ← AirflowApi wrapper (all fetch calls)
     ├── map-generator.js   ← MapGenerator class — procedural island generation
     ├── entities.js        ← DagBuilding, ChatBubble, Sheep classes
@@ -575,7 +557,7 @@ plugins/
 Scripts are loaded in dependency order because they share globals — there is no bundler or module system. Each script must be loaded before the scripts that depend on it:
 
 ```html
-<script src="static/constants.js"></script>    <!-- PF, PLAYER_SPEED, STATE_* tables -->
+    <script src="static/constants.js"></script>    <!-- PF, PLAYER_SPEED, STATE_* maps -->
 <script src="static/api.js"></script>           <!-- AirflowApi -->
 <script src="static/map-generator.js"></script> <!-- MapGenerator -->
 <script src="static/entities.js"></script>      <!-- DagBuilding, ChatBubble, Sheep -->
@@ -589,8 +571,6 @@ Defines global constants used across all other files:
 
 ```javascript
 const PF = { fontFamily: "'Press Start 2P', monospace", resolution: 3 };
-const TILE_W = 64;
-const TILE_H = 64;
 const PLAYER_SPEED = 280;
 const INTERACT_RADIUS = 140;
 
@@ -657,9 +637,11 @@ class ChatBubble extends Phaser.GameObjects.Container {
 }
 ```
 
-**`DagBuilding`** — wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the DAG is running. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
+**`DagBuilding`** — wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the DAG is running, and manages smoke particle emitters. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
 
 **`Sheep`** — a wandering NPC. Uses a timer event (`scene.time.addEvent`) to periodically pick a random velocity and switch between idle and walk animations. If killed three times total, all DAGs are deleted.
+
+The module-level helper `_spawnDamageText(scene, x, y)` is shared by both `DagBuilding` and `Sheep` to avoid duplicating the floating `-1` animation logic.
 
 ### `scene.js` — the Phaser scene
 
@@ -669,9 +651,13 @@ class ChatBubble extends Phaser.GameObjects.Container {
 - **`create()`** — sets up input handlers, starts the 10-second DAG polling timer, calls `_fetchDags()` immediately
 - **`_fetchDags()`** — fetches all DAGs + their latest runs in parallel, normalizes states, then either builds the world from scratch (first load) or updates existing buildings incrementally (subsequent polls)
 - **`_initWorld(dags)`** — tears down and rebuilds the entire Phaser scene: generates the map, places tiles, spawns buildings, spawns the player and sheep, sets up cameras
-- **`update()`** — called every frame: handles movement input, Y-sorts sprites, drifts clouds, scrolls water, finds the nearest building within interact range
+- **`update()`** — called every frame: handles movement input, Y-sorts sprites, drifts clouds, finds the nearest building within interact range, advances the day/night cycle
+- **`_repositionHud()`** — called from `update()` to keep screen-space UI anchored correctly on window resize
 - **`_handleAttack()`** — deals damage to nearby buildings/sheep when Space is pressed
 - **`_handleInteract()`** — opens the appropriate menu when E is pressed
+- **`_initDayNight()` / `_updateDayNight()` / `_updateLightMask()`** — day/night cycle: compute overlay colour from cycle position, fill the `RenderTexture`, erase light holes at player and goblin positions
+- **`_createLightTextures()`** — generates radial gradient canvas textures for the two light sizes
+- **`showToast(msg, type)`** — shows a timed ribbon notification at the top of the screen
 
 ### `ui.js` — DOM bridge and log viewer
 
@@ -728,7 +714,7 @@ this.buildings.forEach(building => {
 });
 ```
 
-Buildings and sheep each have 3 HP, shown as heart icons (visible only when you're close or during combat). Three hits destroy a building, triggering an explosion animation and a `DELETE /api/v2/dags/{id}` call.
+Buildings and sheep each have 3 HP, shown as heart icons (visible only when you're close or during combat). Three hits destroy a building, triggering an explosion animation and a `DELETE api/dags/{id}` call to the plugin backend (which then deletes the DAG from Airflow).
 
 ### The interaction radius and bracket indicators
 
@@ -791,6 +777,154 @@ if (velocityX !== 0 && velocityY !== 0) {
 ```
 
 This keeps the player's actual speed constant regardless of direction.
+
+---
+
+## Visual Effects
+
+### Toast notifications for DAG state changes
+
+Every time `_fetchDags()` runs, it compares the new DAG states against a cached snapshot from the previous poll (`_dagStateCache`). If any DAG just transitioned into `failed` or `success`, a toast banner appears:
+
+```javascript
+if (this._dagStateCache) {
+  const changed = dags.filter(d => this._dagStateCache[d.dag_id] && this._dagStateCache[d.dag_id] !== d.state);
+  const failed  = changed.find(d => d.state === 'failed');
+  const success = changed.find(d => d.state === 'success');
+  if (failed)       this.showToast(`${failed.dag_id} FAILED!`, 'danger');
+  else if (success) this.showToast(`${success.dag_id} COMPLETE`, 'success');
+}
+this._dagStateCache = Object.fromEntries(dags.map(d => [d.dag_id, d.state]));
+```
+
+`showToast()` sets the `data-type` attribute on the `#toast` element, which CSS uses to pick the right ribbon color and icon via attribute selectors.
+
+### Floating damage numbers
+
+Every time a building or sheep takes a hit, a `-1` text object is created at the impact point and animated upward while fading out:
+
+```javascript
+function _spawnDamageText(scene, x, y) {
+  const tx  = x + Phaser.Math.Between(-16, 16);
+  const txt = scene.add.text(tx, y, '-1', { ...PF, fontSize: '14px', color: '#ff3333', stroke: '#000000', strokeThickness: 4 })
+    .setOrigin(0.5, 0.5).setDepth(y + 9999);
+  scene.tweens.add({
+    targets: txt, y: y - 55, alpha: 0, duration: 850, ease: 'Power2',
+    onComplete: () => txt.destroy(),
+  });
+}
+```
+
+The `depth + 9999` ensures the text floats above everything else in the scene. Setting `ease: 'Power2'` makes the text start fast and decelerate, mimicking the physics of something being flung upward.
+
+### Smoke particles over running DAGs
+
+When a DAG enters the `running` state, `_startSmoke()` creates a particle emitter above the building's chimney position. Particles are small grey pixels that rise, spread, and scale up as they fade out — simulating a smoke puff:
+
+```javascript
+this._smokeEmitter = this.scene.add.particles(this.wx, chimneyY, 'smoke_pixel', {
+  speedY:   { min: -35, max: -65 },  // rises upward
+  scale:    { start: 1.0, end: 4.5 }, // expands as it rises
+  alpha:    { start: 0.85, end: 0 },  // fades out
+  tint:     [0xdddddd, 0xcccccc, 0xbbbbbb, 0xaaaaaa],
+  frequency: 200, quantity: 2,
+});
+```
+
+The `smoke_pixel` texture is a 4×4 grey square generated at runtime via `Graphics.generateTexture()` — no image asset needed. When the DAG stops running, `_stopSmoke()` destroys the emitter.
+
+### Day/night cycle and dynamic light sources
+
+The game runs a 2.5-minute cycle that smoothly transitions from day through sunset, night, and back to dawn. This is implemented with a screen-space `RenderTexture` (`_lightMask`) rather than a DOM overlay, because it enables dynamic light sources.
+
+**How the darkness overlay works:**
+
+Every frame, `_updateLightMask()`:
+1. Clears the `RenderTexture`
+2. Fills it with the current night colour and alpha (both computed by `_updateDayNight(delta)` from the cycle position)
+3. Calls `rt.erase()` at the screen position of each light source, punching a transparent hole through the darkness
+
+```javascript
+this._lightMask.clear();
+this._lightMask.fill(hexColor, this._nightAlpha);
+
+// Erase a circle of darkness around the player
+const px = (this.player.x - cam.scrollX) + 100;
+const py = (this.player.y - cam.scrollY) + 100;
+this._lightMask.erase('light_lg', px - 150, py - 150);
+
+// Smaller light for each goblin torch
+this.buildings.forEach(b => {
+  if (!b.worker) return;
+  const wx = (b.worker.x - cam.scrollX) + 100;
+  const wy = (b.worker.y - cam.scrollY) + 100;
+  this._lightMask.erase('light_sm', wx - 90, wy - 90);
+});
+```
+
+The light textures (`light_lg` at 300px, `light_sm` at 180px) are radial gradient canvases generated with the Canvas 2D API:
+
+```javascript
+const grad = ctx.createRadialGradient(r, r, 0, r, r, r);
+grad.addColorStop(0,    'rgba(255,255,255,1.0)');  // fully transparent hole at center
+grad.addColorStop(0.65, 'rgba(255,255,255,0.30)'); // soft falloff
+grad.addColorStop(1,    'rgba(255,255,255,0.0)');  // darkness at the edge
+```
+
+When this white gradient is used with `rt.erase()`, it removes the corresponding amount of the darkness fill — creating a soft glowing light source effect.
+
+**Why `setScrollFactor(0)`:**
+
+The `RenderTexture` uses `setScrollFactor(0)` so it stays fixed to the screen even as the camera moves. The `+100` pixel offset compensates for the fact that the RT is positioned at `(-100, -100)` to add a small overflow margin that prevents edge clipping when the player is near the screen edge.
+
+**Phase timeline:**
+
+| t range | Phase | Overlay colour |
+|---------|-------|----------------|
+| 0.00 – 0.30 | Day | None (invisible) |
+| 0.30 – 0.45 | Sunset | Warm amber fade in |
+| 0.45 – 0.55 | Dusk | Transition to deep blue |
+| 0.55 – 0.70 | Night | Deep blue, max opacity |
+| 0.70 – 0.80 | Dawn | Warm amber fade back |
+| 0.80 – 0.95 | Sunrise | Amber fades to transparent |
+| 0.95 – 1.00 | Day | Invisible again |
+
+### Day/night time indicator (bottom HUD)
+
+A bottom-centre bar shows where in the cycle the game currently is. A sun icon on the left represents day; a moon icon on the right represents night. A small circular marker slides along the bar:
+
+```javascript
+// markerPos: 0 = full day, 1 = full night
+const markerPos = t <= 0.55 ? t / 0.55 : 1 - (t - 0.55) / 0.45;
+document.getElementById('time-marker').style.left = `${(markerPos * 100).toFixed(1)}%`;
+```
+
+The bar background uses `healthbarpanel_160x41.png` (a pixel-art panel from the UI asset pack) via CSS `background-image`. The track is `valuebar_128x16.png` and the sliding marker is `blackbigcircleboxwithborder_27x27.png`.
+
+Phase transition labels ("SUNSET APPROACHES...", "NIGHTFALL", "DAWN BREAKS") appear at `#time-label` below the bar for 3 seconds using `_showTimeLabel()`.
+
+### Scanlines effect
+
+A subtle scanline overlay is applied to the entire game using a CSS `::after` pseudo-element on `#root`:
+
+```css
+#root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 99999;
+}
+```
+
+Every 4 pixels, one pixel row gets a 4% black overlay, simulating the CRT scanline look. `pointer-events: none` ensures it never interferes with clicks.
 
 ---
 

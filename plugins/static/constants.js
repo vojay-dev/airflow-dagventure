@@ -5,8 +5,6 @@ const PF = {
   resolution: 3,
 };
 
-const TILE_W = 64;
-const TILE_H = 64;
 const PLAYER_SPEED = 280;
 const INTERACT_RADIUS = 140;
 

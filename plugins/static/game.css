@@ -14,6 +14,22 @@ body {
   height: 100vh;
 }
 
+/* Subtle CRT scanlines — retro pixel feel */
+#root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent          0px,
+    transparent          1px,
+    rgba(0, 0, 0, 0.04)  1px,
+    rgba(0, 0, 0, 0.04)  2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
 #game-canvas-container {
   position: absolute;
   inset: 0;
@@ -72,13 +88,77 @@ body {
   white-space: nowrap;
 }
 
+/* ── Day/night time indicator (bottom-centre) ── */
+#time-hud {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 50;
+  /* Dark pixel-art panel — stretch the uniform dark centre */
+  background: url('../assets/ui/more/healthbarpanel_160x41.png') no-repeat center / 100% 100%;
+  padding: 6px 14px;
+  /* min-width keeps the panel from being too narrow */
+  min-width: 230px;
+}
+
+.time-icon {
+  width: 28px;
+  height: 28px;
+  image-rendering: pixelated;
+  display: block;
+  flex-shrink: 0;
+  opacity: 1;
+  /* Glow so icons pop against the dark panel */
+  filter: drop-shadow(0 0 4px rgba(255, 230, 100, 0.9));
+}
+
+#time-track {
+  flex: 1;
+  height: 16px;
+  background: url('../assets/ui/more/valuebar_128x16.png') no-repeat center / 100% 100%;
+  position: relative;
+}
+
+/* Gold-bordered circle marker — easy to read on the dark panel */
+#time-marker {
+  width: 22px;
+  height: 22px;
+  position: absolute;
+  top: -3px;
+  left: 0%;
+  transform: translateX(-50%);
+  background: url('../assets/ui/more/blackbigcircleboxwithborder_27x27.png') no-repeat center / contain;
+  image-rendering: pixelated;
+}
+
+/* Phase label — fades in above the time bar */
+#time-label {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+  opacity: 0;
+  transition: opacity 0.6s;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 50;
+}
+
 /* ── Toast notification ── */
 #toast {
   position: absolute;
   top: 110px;
   left: 50%;
   transform: translateX(-50%);
-  background: url('../assets/ui/ribbons/ribbon_red_3slides.png') no-repeat center / 100% 100%;
   padding: 14px 40px;
   font-size: 10px;
   opacity: 0;
@@ -88,7 +168,15 @@ body {
   white-space: nowrap;
   pointer-events: none;
   z-index: 50;
+  /* default (danger) */
+  background: url('../assets/ui/ribbons/ribbon_red_3slides.png') no-repeat center / 100% 100%;
 }
+
+#toast[data-type="success"] {
+  background: url('../assets/ui/ribbons/ribbon_blue_3slides.png') no-repeat center / 100% 100%;
+  filter: hue-rotate(110deg) brightness(1.1) saturate(1.2);
+}
+
 
 #interaction-menu, #log-modal {
   position: absolute;
