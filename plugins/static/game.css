@@ -1,0 +1,274 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #3da8b8;
+  overflow: hidden;
+  font-family: 'Press Start 2P', monospace;
+  color: #333;
+  image-rendering: pixelated;
+}
+
+#root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+}
+
+#game-canvas-container {
+  position: absolute;
+  inset: 0;
+  background: #3da8b8;
+}
+
+#hud {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ── DAG counter (top-left) — carved stone panel ── */
+#hud-dags-panel {
+  border: 24px solid transparent;
+  border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
+  padding: 4px 14px;
+  min-width: 150px;
+}
+
+#hud-dags-panel::before {
+  content: '⚔ ';
+  color: #7a5a2a;
+}
+
+#hud-dags {
+  font-size: 9px;
+  color: #2e1f0e;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.45);
+}
+
+/* ── Controls hint (top-right) — carved stone, always visible ── */
+#hud-hint-panel {
+  border: 24px solid transparent;
+  border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
+  padding: 4px 14px;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.hud-hint-line {
+  font-size: 8px;
+  color: #2e1f0e;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.45);
+  text-align: center;
+  white-space: nowrap;
+}
+
+/* ── Toast notification ── */
+#toast {
+  position: absolute;
+  top: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: url('../assets/ui/ribbons/ribbon_red_3slides.png') no-repeat center / 100% 100%;
+  padding: 14px 40px;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  color: #fff;
+  text-shadow: 2px 2px 0 #000;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
+}
+
+#interaction-menu, #log-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.panel-inner {
+  width: 440px;
+  min-height: 400px;
+  border: 32px solid transparent;
+  border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill repeat;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.log-inner {
+  width: 850px;
+  height: 650px;
+  border: 32px solid transparent;
+  border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill repeat;
+  background-color: #1a1a1a;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+#log-content {
+  flex-grow: 1;
+  background: #000;
+  color: #32cd32;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  padding: 15px;
+  overflow: auto;
+  white-space: pre-wrap;
+  border: 4px solid #444;
+  margin-bottom: 15px;
+  line-height: 1.4;
+}
+
+.panel-title {
+  font-size: 14px;
+  color: #fff;
+  margin-bottom: 24px;
+  text-align: center;
+  width: 320px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-size: 100% 100%;
+  text-transform: uppercase;
+  text-shadow: 2px 2px 0 #000;
+  padding-bottom: 8px;
+}
+
+.panel-title.ribbon-blue { background-image: url('../assets/ui/ribbons/ribbon_blue_3slides.png'); }
+.panel-title.ribbon-red { background-image: url('../assets/ui/ribbons/ribbon_red_3slides.png'); }
+.panel-title.ribbon-yellow { background-image: url('../assets/ui/ribbons/ribbon_yellow_3slides.png'); }
+.panel-title.ribbon-green { 
+  background-image: url('../assets/ui/ribbons/ribbon_blue_3slides.png');
+  filter: hue-rotate(100deg) brightness(1.1) saturate(1.2);
+}
+
+.log-inner .panel-title {
+  background-image: url('../assets/ui/ribbons/ribbon_red_3slides.png');
+  filter: none;
+  width: 360px;
+  align-self: center;
+}
+
+.panel-state {
+  font-size: 10px;
+  margin-bottom: 24px;
+  text-align: center;
+  background: rgba(0,0,0,0.05);
+  padding: 12px;
+  border: 2px dashed rgba(0,0,0,0.2);
+  width: 100%;
+  color: #222;
+}
+
+.panel-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  align-items: center;
+}
+
+.task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: rgba(255,255,255,0.6);
+  padding: 8px 12px;
+  border: 2px solid rgba(0,0,0,0.1);
+  font-size: 9px;
+  margin-bottom: 6px;
+  border-radius: 2px;
+}
+
+.task-name {
+  flex-grow: 1;
+  margin-left: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #222;
+}
+
+.task-link {
+  text-decoration: none;
+  background: #3da8b8;
+  color: #fff;
+  padding: 4px 8px;
+  border: 2px solid rgba(0,0,0,0.2);
+  font-size: 8px;
+  margin-left: 10px;
+  cursor: pointer;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+}
+
+.task-link:hover { background: #2c8a98; transform: scale(1.05); }
+
+.menu-btn {
+  background: none;
+  border: 12px solid transparent;
+  border-image: url('../assets/ui/buttons/button_blue_9slides.png') 24 fill repeat;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 9px;
+  color: #fff;
+  cursor: pointer;
+  padding: 8px 0;
+  text-align: center;
+  text-shadow: 2px 2px 0 rgba(0,0,0,0.5);
+  width: 100%;
+  transition: transform 0.1s;
+}
+
+.menu-btn:hover { filter: brightness(1.1); transform: translateY(-2px); }
+.menu-btn:active { transform: translateY(1px); filter: brightness(0.9); }
+.menu-btn.warning { border-image: url('../assets/ui/buttons/button_red_9slides.png') 24 fill repeat; }
+
+.close-btn {
+  margin-top: 24px;
+  font-size: 8px;
+  opacity: 1;
+  border-image: url('../assets/ui/buttons/button_disable_9slides.png') 24 fill repeat;
+  color: #333;
+  text-shadow: none;
+  width: 90%;
+}
+
+.log-inner .close-btn {
+  color: #fff;
+  text-shadow: 1px 1px 0 #000;
+  margin-top: 0;
+  width: 200px;
+  align-self: center;
+}
+
+/* Airflow log syntax highlighting (highlight.js custom language) */
+#log-content .hljs-log-group     { color: #555; font-style: italic; }
+#log-content .hljs-log-ts        { color: #22cccc; }
+#log-content .hljs-log-critical  { color: #ff2222; font-weight: bold; }
+#log-content .hljs-log-error     { color: #ff5555; font-weight: bold; }
+#log-content .hljs-log-warning   { color: #ffaa00; font-weight: bold; }
+#log-content .hljs-log-info      { color: #55ff55; }
+#log-content .hljs-log-debug     { color: #888; }
+#log-content .hljs-log-exception { color: #ff8800; font-weight: bold; }
+#log-content .hljs-log-path      { color: #88aaff; }
+
+.hidden { display: none !important; }

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dagventure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=block" rel="stylesheet" />
+  <link rel="stylesheet" href="static/game.css?v=__BUILD_TS__" />
+</head>
+<body>
+  <div id="root">
+
+    <!-- Phaser renders here -->
+    <div id="game-canvas-container"></div>
+
+    <!-- HUD (on top of canvas) -->
+    <div id="hud">
+      <div id="hud-dags-panel">
+        <span id="hud-dags">Loading…</span>
+      </div>
+      <div id="hud-hint-panel">
+        <span class="hud-hint-line">WASD: MOVE</span>
+        <span class="hud-hint-line">SPACE: ATTACK</span>
+        <span class="hud-hint-line">E: INTERACT</span>
+      </div>
+    </div>
+
+    <!-- Toast sits outside the HUD flex row -->
+    <div id="toast"></div>
+
+    <!-- Interaction menu -->
+    <div id="interaction-menu" class="panel hidden">
+      <div class="panel-inner">
+        <div id="menu-title" class="panel-title"></div>
+        <div id="menu-state" class="panel-state"></div>
+        <div id="menu-buttons" class="panel-buttons"></div>
+        <button id="menu-close" class="menu-btn close-btn">✕ Close  [Esc]</button>
+      </div>
+    </div>
+
+    <!-- Log Modal -->
+    <div id="log-modal" class="panel hidden">
+      <div class="log-inner">
+        <div class="panel-title">Task Logs</div>
+        <pre id="log-content">Loading...</pre>
+        <button id="log-close" class="menu-btn close-btn">✕ Close</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Phaser 3 from CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <!-- highlight.js for log syntax highlighting -->
+  <script src="static/highlight.min.js?v=__BUILD_TS__"></script>
+  <script src="static/api.js?v=__BUILD_TS__"></script>
+  <script src="static/constants.js?v=__BUILD_TS__"></script>
+  <script src="static/map-generator.js?v=__BUILD_TS__"></script>
+  <script src="static/entities.js?v=__BUILD_TS__"></script>
+  <script src="static/scene.js?v=__BUILD_TS__"></script>
+  <script src="static/ui.js?v=__BUILD_TS__"></script>
+</body>
+</html>

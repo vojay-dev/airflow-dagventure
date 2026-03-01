@@ -1,0 +1,904 @@
+# Dagventure
+
+An Airflow 3 plugin that turns your DAG list into a playable pixel-art world. Every active DAG becomes a building on a procedurally generated island. Walk your knight around, trigger pipeline runs, read task logs, pause workflows, and destroy broken pipelines with a sword.
+
+```
+[ Browser: Phaser 3 game ]
+          │
+          │ HTTP/JSON — relative paths, same-origin session auth
+          ▼
+[ Airflow API Server: FastAPI plugin ] ──▶ serves game.html + assets
+          │
+          │ plugin also proxies log requests (requests library)
+          ▼
+[ Airflow REST API v2 ] ──▶ [ Airflow Metadata DB ]
+```
+
+---
+
+## Table of Contents
+
+1. [Prerequisites](#prerequisites)
+2. [Installation](#installation)
+3. [Controls](#controls)
+4. [How Airflow 3 Plugins Work](#how-airflow-3-plugins-work)
+5. [How the Frontend Communicates with Airflow](#how-the-frontend-communicates-with-airflow)
+6. [How Phaser 3 Works — A Beginner's Guide](#how-phaser-3-works--a-beginners-guide)
+7. [How the Procedural Map is Generated](#how-the-procedural-map-is-generated)
+8. [Architecture: File by File](#architecture-file-by-file)
+9. [Game Mechanics in Depth](#game-mechanics-in-depth)
+10. [The Backend: dagventure.py Explained](#the-backend-dagventurepy-explained)
+11. [API Reference](#api-reference)
+12. [Asset Credits](#asset-credits)
+
+---
+
+## Prerequisites
+
+- **Airflow 3.x** (tested on Astro Runtime based on Airflow 3). This plugin uses APIs that are not available in Airflow 2.x.
+- Python 3.12+
+- The `apache-airflow-client` Python package (for the log proxy endpoint)
+- The Tiny Swords pixel art asset pack (included in `plugins/assets/`)
+
+---
+
+## Installation
+
+### 1. Copy the plugin directory
+
+Copy the entire `plugins/` directory into the `plugins/` folder of your Airflow / Astro project. The assets are bundled inside `plugins/assets/`, so there is nothing else to copy.
+
+```
+your-airflow-project/
+├── dags/
+├── plugins/
+│   ├── dagventure.py          ← plugin entry point
+│   ├── assets/                   ← pixel art assets (bundled)
+│   └── static/                   ← JS, CSS, HTML
+└── ...
+```
+
+### 2. Restart the API server
+
+```bash
+# Local Astro development environment
+astro dev restart
+
+# Plain Airflow (Docker Compose)
+docker compose restart airflow-webserver airflow-apiserver
+```
+
+Airflow auto-discovers plugins: any `.py` file in `plugins/` that defines an `AirflowPlugin` subclass is loaded automatically. No extra config required.
+
+### 3. Open the game
+
+After restart, a **"Dagventure"** entry appears in the Airflow navigation bar. Click it, or go directly to:
+
+```
+http://localhost:8080/dagventure/game
+```
+
+The game loads your live DAG list and builds the world. If the API is unreachable (e.g. running the HTML file outside Airflow), a demo world with 15 placeholder DAGs is shown instead.
+
+---
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| `WASD` / Arrow keys | Move the knight |
+| `E` | Interact — opens the DAG menu when near a building, or talks to the goblin worker when the DAG is running |
+| `Space` | Attack — deals 1 HP to the nearest building or sheep within range |
+| `ESC` | Close log modal (first press), then close DAG menu (second press) |
+
+---
+
+## How Airflow 3 Plugins Work
+
+If you are new to Airflow plugins, this section explains the full picture from scratch.
+
+### What is a plugin?
+
+A plugin is a Python file (or package) you drop in the `plugins/` folder of your Airflow project. When Airflow starts, it scans that folder and imports every `.py` file it finds. If the file defines a class that inherits from `AirflowPlugin`, Airflow loads it automatically. No extra config, no pip install, no restart script — just copy the file.
+
+Airflow 3 added a first-class feature: a plugin can register a **FastAPI application** that runs *inside* the Airflow API server process. That means your plugin gets a real HTTP server at a custom URL path, with zero extra infrastructure.
+
+### The plugin class
+
+Every plugin is identified by a class like this:
+
+```python
+from airflow.plugins_manager import AirflowPlugin
+from fastapi import FastAPI
+
+app = FastAPI()
+
+@app.get("/hello")
+async def hello():
+    return {"message": "Hello from my plugin!"}
+
+class MyPlugin(AirflowPlugin):
+    name = "my_plugin"          # must be unique across all plugins, snake_case
+
+    fastapi_apps = [{
+        "app": app,
+        "url_prefix": "/my-plugin",   # all routes live under this prefix
+        "name": "My Plugin",
+    }]
+
+    external_views = [{
+        "name":        "My Plugin",    # label shown in the Airflow nav bar
+        "href":        "my-plugin/hello",  # NO leading slash — this is critical
+        "destination": "nav",
+        "url_route":   "my-plugin",
+    }]
+```
+
+Airflow mounts the FastAPI app at `/my-plugin`. Your route `/hello` becomes `/my-plugin/hello`. The `external_views` entry adds a clickable link to the Airflow navigation bar that points to that URL.
+
+### Why `href` must never have a leading slash
+
+On Astronomer's managed Astro platform, the Airflow API server sits behind a reverse proxy that adds its own URL prefix. If you write `href: "/my-plugin/hello"`, the browser will navigate to exactly `/my-plugin/hello` — ignoring the proxy prefix — and get a 404.
+
+If you write `href: "my-plugin/hello"` (no leading slash), the browser resolves the URL relative to the current Airflow base, which works whether you're running locally, on Astro, or on any other deployment.
+
+The same rule applies to every resource loaded from `game.html`:
+
+```html
+<!-- WRONG — breaks on Astro -->
+<script src="/dagventure/static/scene.js"></script>
+
+<!-- CORRECT — works locally and on Astro -->
+<script src="static/scene.js"></script>
+```
+
+### Authentication
+
+The plugin inherits the Airflow session. A user who has already logged into the Airflow UI is automatically authenticated when the game makes API calls — the browser sends the session cookie automatically on every same-origin `fetch()`. No custom JWT, no API key, no extra headers needed.
+
+---
+
+## How the Frontend Communicates with Airflow
+
+### The two paths: direct fetch vs. backend proxy
+
+The game uses **two different mechanisms** depending on which operation it's doing.
+
+**1. DAG management (trigger, pause, list, delete) — direct fetch from the browser**
+
+The game frontend calls the Airflow REST API v2 directly from JavaScript using `fetch()`. Because the game page is served by Airflow itself (same origin), the browser's session cookie is sent automatically:
+
+```javascript
+// In api.js — the AirflowApi wrapper
+const BASE = 'api';  // relative URL, resolves to /dagventure/api/
+
+async function getDags(limit = 100) {
+  const response = await fetch(`${BASE}/dags?limit=${limit}`);
+  if (!response.ok) throw new Error(`getDags failed: ${response.status}`);
+  return response.json();
+}
+```
+
+Wait — that's calling `/dagventure/api/dags`, not `/api/v2/dags`. That's because all DAG calls are proxied through the plugin backend, which then talks to Airflow's API server using the `apache-airflow-client` Python library with a JWT token. This gives the plugin more control over the response shape (normalizing state fields, formatting log messages, etc.).
+
+**2. Task logs — proxied through the plugin backend**
+
+Logs use the same proxy path. The frontend calls:
+
+```javascript
+await fetch(`api/dags/${dagId}/runs/${runId}/tasks/${taskId}/logs/${tryNumber}`)
+```
+
+The plugin backend receives this, fetches the raw JSON from Airflow's log endpoint with `requests`, parses the `StructuredLogMessage` list, and returns clean plain text:
+
+```python
+# In dagventure.py
+url = f"{AIRFLOW_HOST}/api/v2/dags/{dag_id}/dagRuns/{run_id}/taskInstances/{task_id}/logs/{try_number}"
+resp = requests.get(url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+data = resp.json()
+messages = data.get("content", data)
+lines = [f"[{msg['timestamp']}] {msg['event']}" for msg in messages if msg.get('event')]
+return "\n".join(lines)
+```
+
+Airflow 3 uses **structured logging**: instead of returning a plain text file, the log endpoint returns a JSON list of `StructuredLogMessage` objects, each with an `event` (the message text) and a `timestamp`. The backend formats these into readable lines before sending them to the game.
+
+### The plugin API routes
+
+| Method | Path | What it does |
+|--------|------|-------------|
+| `GET` | `/dagventure/game` | Serves `game.html` |
+| `GET` | `/dagventure/static/*` | Serves JS/CSS files |
+| `GET` | `/dagventure/assets/*` | Serves pixel art assets |
+| `GET` | `/dagventure/api/dags` | Lists DAGs (proxied from Airflow) |
+| `GET` | `/dagventure/api/dags/{id}/runs` | Lists DAG runs |
+| `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks` | Lists task instances |
+| `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks/{task}/logs/{n}` | Task log (formatted) |
+| `POST` | `/dagventure/api/dags/{id}/trigger` | Triggers a new run |
+| `PATCH` | `/dagventure/api/dags/{id}/pause` | Pauses or unpauses |
+| `DELETE` | `/dagventure/api/dags/{id}` | Deletes a DAG |
+
+### State normalization
+
+Airflow has many internal task states (`queued`, `scheduled`, `deferred`, `up_for_retry`, `upstream_failed`, ...). The game only cares about a small set. The normalization happens in `_fetchDags()` in `scene.js`:
+
+```javascript
+let state;
+if (rawDag.is_paused) {
+    state = 'paused';
+} else if (!latestRun) {
+    state = 'never_run';
+} else {
+    state = latestRun.state || 'never_run';  // use Airflow's state directly
+}
+```
+
+These normalized states then drive building appearance:
+
+| State | Building color | Goblin worker? |
+|-------|---------------|----------------|
+| `success` | Blue | No |
+| `running` | Yellow | Yes — spawns next to building |
+| `failed` | Construction site | No |
+| `paused` | Purple | No |
+| `queued` | Construction site | No |
+| `never_run` | Blue | No |
+
+---
+
+## How Phaser 3 Works — A Beginner's Guide
+
+If you have never used a game framework before, this section explains the core concepts used in this project.
+
+### What is Phaser?
+
+Phaser is a JavaScript game framework that runs in the browser. It handles:
+- Rendering (drawing sprites, backgrounds, text) via WebGL or Canvas
+- Physics (collision detection, velocity, gravity)
+- Input (keyboard, mouse, touch)
+- Asset loading (images, spritesheets, audio)
+- Animations (cycling through frames of a spritesheet)
+- Cameras (viewport, zoom, follow)
+
+Dagventure loads Phaser from a CDN — there is no build step, no `npm install`, no bundler.
+
+### The game loop
+
+Every Phaser game has three core lifecycle methods that you override:
+
+```javascript
+class GameScene extends Phaser.Scene {
+
+  preload() {
+    // Called once at startup.
+    // Load all assets (images, spritesheets, audio) here.
+    // Phaser queues the downloads and won't call create() until they're all done.
+    this.load.image('water', 'assets/terrain/water/water.png');
+    this.load.spritesheet('warrior', 'assets/.../warrior_blue.png', {
+      frameWidth: 192, frameHeight: 192
+    });
+  }
+
+  create() {
+    // Called once after all assets are loaded.
+    // Create game objects (sprites, physics bodies, cameras, animations).
+    // Wire up input handlers.
+    this.player = this.physics.add.sprite(100, 100, 'warrior');
+    this.player.play('p_idle');
+  }
+
+  update() {
+    // Called every frame (~60 times per second).
+    // Move things, check input, update depths, animate water.
+    if (this.cursors.left.isDown) {
+        this.player.setVelocityX(-280);
+    }
+  }
+}
+```
+
+### Spritesheets and animations
+
+A spritesheet is a single image file that contains multiple animation frames laid out in a grid. Instead of loading 8 separate PNG files for a walking animation, you load one file and tell Phaser the frame dimensions:
+
+```javascript
+// Load: tell Phaser how to slice the image into frames
+this.load.spritesheet('warrior', 'warrior_blue.png', {
+  frameWidth: 192,
+  frameHeight: 192
+});
+
+// Create animation: define which frames to play and how fast
+this.anims.create({
+  key: 'p_walk',
+  frames: this.anims.generateFrameNumbers('warrior', { start: 6, end: 11 }),
+  frameRate: 12,
+  repeat: -1,  // -1 means loop forever
+});
+
+// Play animation on a sprite
+this.player.play('p_walk');
+```
+
+The warrior spritesheet (`warrior_blue.png`) is a 1152×1536 image with 6 columns and 8 rows of 192×192 frames. Row 0 (frames 0–5) is the idle animation, row 1 (frames 6–11) is walking, row 2 (frames 12–17) is attacking.
+
+### Physics
+
+Phaser's Arcade Physics engine handles movement and collision. There are two kinds of physics bodies:
+
+- **Dynamic bodies** — can move, are affected by velocity and collisions (the player, sheep, goblin workers)
+- **Static bodies** — never move, but block dynamic bodies (water tiles, trees, buildings)
+
+```javascript
+// Dynamic sprite — can move
+this.player = this.physics.add.sprite(x, y, 'warrior');
+this.player.setVelocity(280, 0);  // move right at 280 pixels/second
+
+// Static group — immovable obstacles
+this.obstacles = this.physics.add.staticGroup();
+this.obstacles.create(x, y, null).setVisible(false).body.setSize(64, 64);
+
+// Wire up collision — player bounces off obstacles
+this.physics.add.collider(this.player, this.obstacles);
+```
+
+**Why hitboxes are smaller than sprites:**
+The game uses a top-down perspective with sprites that look like they're viewed at an angle (the "2.5D pixel-art look"). The warrior sprite is 192×192 pixels, but visually the character's feet are near the bottom of the frame. If the hitbox covered the full 192×192 area, the player would collide with things that are visually above them (trees, building rooftops). Instead, hitboxes only cover the "feet" area:
+
+```javascript
+// Player hitbox: 32×16 pixels, offset to sit at the warrior's feet
+this.player.body.setSize(32, 16).setOffset(80, 170);
+```
+
+**The `refreshBody()` gotcha:**
+When you call `setScale()` or `setOrigin()` on a static body, Phaser does *not* automatically recalculate the physics body position. You must call `refreshBody()` explicitly, otherwise the invisible collision box will be in the wrong place:
+
+```javascript
+const tree = this.obstacles.create(x, y, 'tree', frame)
+  .setOrigin(0.5, 1)
+  .setScale(0.8);
+tree.body.setSize(32, 32).setOffset(61, 122);
+tree.refreshBody();  // ← required after setOrigin/setScale on static bodies
+```
+
+### Cameras
+
+Phaser supports multiple cameras looking at the same game world simultaneously. This project uses two:
+
+1. **Main camera** — follows the player with a small lag (0.1 lerp factor), covers the full screen
+2. **Minimap camera** — a small 200×200 viewport in the bottom-right corner, zoomed out to 12%
+
+```javascript
+// Main camera follows the player
+this.cameras.main
+  .setBounds(0, 0, worldWidth, worldHeight)
+  .startFollow(this.player, true, 0.1, 0.1);  // lerp X=0.1, Y=0.1 for smooth follow
+
+// Minimap camera: positioned at bottom-right, very zoomed out
+this.minimap = this.cameras
+  .add(window.innerWidth - 220, window.innerHeight - 220, 200, 200)
+  .setZoom(0.12)
+  .setBounds(0, 0, worldWidth, worldHeight)
+  .startFollow(this.player);
+
+// Tell the minimap to ignore certain objects (so they don't render twice)
+this.minimap.ignore(this.miniFrame);   // the decorative frame
+this.minimap.ignore(this.clouds);       // clouds don't appear on minimap
+```
+
+### Depth sorting (Y-sort)
+
+In a 2D top-down game, objects that are "lower" on the screen (higher Y coordinate) should appear in front of objects that are "higher" (lower Y). This creates the illusion of depth. The technique is called Y-sorting.
+
+Phaser renders objects in order of their `depth` property. We set each moving object's depth equal to its Y position every frame:
+
+```javascript
+update() {
+  this.player.setDepth(this.player.y);
+  this.sheeps.forEach(s => s.sprite.setDepth(s.sprite.y));
+}
+```
+
+Static objects (buildings, trees, decorations) have their depth set once at creation time since they never move.
+
+### The TileSprite for animated water
+
+The ocean background is not a static image — it scrolls slowly to simulate moving water. Phaser's `TileSprite` repeats a texture across an area and lets you offset the texture position each frame:
+
+```javascript
+// Create a tile sprite that fills the entire world
+this.waterBg = this.add.tileSprite(0, 0, worldWidth, worldHeight, 'water').setOrigin(0);
+
+// In update() — shift the texture a tiny bit each frame
+this.waterBg.tilePositionX += 0.4;
+this.waterBg.tilePositionY += 0.2;
+```
+
+No animation frames needed — the tile just scrolls continuously.
+
+### The NineSlice for UI panels
+
+Pixel-art UI panels need to scale without distorting the corners (which have decorative detail). Phaser's `NineSlice` object divides an image into a 3×3 grid: the four corners are never scaled, the four edges stretch along one axis only, and the center stretches in both directions.
+
+```javascript
+// 9-slice panel: 230×230, with 32-pixel insets on all sides
+this.add.nineslice(x, y, 'minimap_frame', null, 230, 230, 32, 32, 32, 32);
+```
+
+This allows the chat bubble above each building to grow and shrink based on text length without distorting the ribbon graphic.
+
+---
+
+## How the Procedural Map is Generated
+
+The map is generated fresh every time the game loads (or when the DAG count changes). The process happens entirely in `map-generator.js` and uses no external libraries.
+
+### Step 1: Size the grid
+
+The map is a 2D grid of cells, each 64×64 pixels. The grid starts as all water (every cell = `0`). Its dimensions scale with the number of DAGs:
+
+```javascript
+const islandsCount = Math.max(1, Math.ceil(numDags / 3));
+this.cols = 60 + islandsCount * 12;
+this.rows = 40 + islandsCount * 8;
+this.grid = Array.from({ length: this.rows }, () => Array(this.cols).fill(0));
+```
+
+For 12 DAGs: 4 islands, 108 columns × 72 rows → a 6912×4608 pixel world.
+
+### Step 2: Place island blobs
+
+For each island, a random center point and radius are chosen. Then every grid cell near that center is tested: if it's close enough to the center, it becomes land (`1`).
+
+The "close enough" check uses a small noise function to make the island edge irregular instead of a perfect circle:
+
+```javascript
+drawBlob(cx, cy, r) {
+  for (let row = cy - r - 3; row <= cy + r + 3; row++) {
+    for (let col = cx - r - 3; col <= cx + r + 3; col++) {
+      const dx   = col - cx;
+      const dy   = row - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      // sine+cosine noise: shifts the effective radius by up to ±2 cells
+      // depending on the cell's coordinates — creates a jagged, organic edge
+      const noise = (Math.sin(col * 0.4) + Math.cos(row * 0.4)) * 2;
+
+      if (dist + noise < r) {
+        this.grid[row][col] = 1;  // mark as land
+      }
+    }
+  }
+}
+```
+
+The noise term `(sin(x * 0.4) + cos(y * 0.4)) * 2` oscillates slowly across the grid. When the noise is positive, cells at the edge of the radius are excluded (island shrinks locally). When negative, cells just outside the radius are included (island bulges). The result looks like a natural island shape rather than a circle.
+
+### Step 3: Draw bridges
+
+Islands are connected in sequence (island 0 → 1, 1 → 2, etc.) by drawing a bridge between each pair. A bridge is just a series of small blobs placed along a straight line between two island centers:
+
+```javascript
+drawBridge(islandA, islandB) {
+  const steps = 25;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;  // goes from 0.0 to 1.0
+    const x = Math.floor(Phaser.Math.Linear(islandA.cx, islandB.cx, t));
+    const y = Math.floor(Phaser.Math.Linear(islandA.cy, islandB.cy, t));
+    this.drawBlob(x, y, 4);  // radius-4 blob at each point along the line
+  }
+}
+```
+
+`Phaser.Math.Linear(a, b, t)` returns `a + (b - a) * t` — it linearly interpolates between two values. By stepping `t` from 0 to 1 in 25 increments and drawing a small blob at each point, you get a continuous land bridge.
+
+### Step 4: Pick edge/corner tile frames
+
+Once the grid is filled, `scene.js` renders it by checking each land cell's four immediate neighbors. Depending on which sides are water vs. land, a different tile frame is chosen:
+
+```javascript
+const hasUp    = this.gen.getTile(row - 1, col) === 1;
+const hasDown  = this.gen.getTile(row + 1, col) === 1;
+const hasLeft  = this.gen.getTile(row, col - 1) === 1;
+const hasRight = this.gen.getTile(row, col + 1) === 1;
+
+let tileFrame = 11;  // default: fully surrounded interior tile
+if      (!hasUp   && !hasLeft)  tileFrame = 0;   // top-left corner
+else if (!hasUp   && !hasRight) tileFrame = 2;   // top-right corner
+else if (!hasDown && !hasLeft)  tileFrame = 20;  // bottom-left corner
+else if (!hasDown && !hasRight) tileFrame = 22;  // bottom-right corner
+else if (!hasUp)                tileFrame = 1;   // top edge
+else if (!hasDown)              tileFrame = 21;  // bottom edge
+else if (!hasLeft)              tileFrame = 10;  // left edge
+else if (!hasRight)             tileFrame = 12;  // right edge
+```
+
+The ground tilemap spritesheet (`tilemap_flat.png`) is a 10×4 grid of 64×64 tiles. Frame numbers increase left-to-right, top-to-bottom (frame 0 = top-left tile, frame 11 = center of top row, etc.).
+
+### Step 5: Select building placement spots
+
+`getLandSpots(count)` collects all land cells at least 4 cells from the map edge, shuffles them randomly, then picks spots that are at least 7 cells apart from each other:
+
+```javascript
+getLandSpots(count) {
+  const candidates = [];
+  for (let r = 4; r < this.rows - 4; r++) {
+    for (let c = 4; c < this.cols - 4; c++) {
+      if (this.grid[r][c] === 1) candidates.push({ c, r });
+    }
+  }
+
+  Phaser.Utils.Array.Shuffle(candidates);  // randomize order
+
+  const selected = [];
+  for (const spot of candidates) {
+    if (selected.length >= count) break;
+    const isFarEnough = selected.every(
+      existing => Math.abs(existing.c - spot.c) > 7 || Math.abs(existing.r - spot.r) > 7
+    );
+    if (isFarEnough) selected.push(spot);
+  }
+  return selected;
+}
+```
+
+The minimum-distance check prevents buildings from overlapping or being placed side-by-side. `_initWorld()` requests `dags.length + 51` spots: one for the player spawn, one per DAG, and 50 extras buffered so new DAGs that appear between world rebuilds can be placed without regenerating the entire map.
+
+---
+
+## Architecture: File by File
+
+```
+plugins/
+├── dagventure.py       ← FastAPI app + AirflowPlugin registration
+├── assets/                ← Pixel art (served at /dagventure/assets/)
+│   ├── factions/knights/  ← Player sprite, building sprites
+│   ├── factions/goblins/  ← Goblin worker sprite
+│   ├── terrain/           ← Ground tiles, water
+│   ├── resources/         ← Trees, sheep
+│   ├── effects/           ← Explosion animation
+│   ├── ui/                ← Banners, ribbons, buttons, icons, pointers
+│   └── deco/              ← Decorative objects 01–18
+└── static/                ← Frontend (served at /dagventure/static/)
+    ├── game.html          ← Entry point — loads Phaser CDN + scripts in order
+    ├── constants.js       ← Shared constants and lookup tables
+    ├── api.js             ← AirflowApi wrapper (all fetch calls)
+    ├── map-generator.js   ← MapGenerator class — procedural island generation
+    ├── entities.js        ← DagBuilding, ChatBubble, Sheep classes
+    ├── scene.js           ← GameScene — the Phaser scene (preload/create/update)
+    ├── ui.js              ← DOM bridge functions + Phaser.Game boot
+    └── game.css           ← HUD, menus, pixel-art panels
+```
+
+### Script loading order
+
+Scripts are loaded in dependency order because they share globals — there is no bundler or module system. Each script must be loaded before the scripts that depend on it:
+
+```html
+<script src="static/constants.js"></script>    <!-- PF, PLAYER_SPEED, STATE_* tables -->
+<script src="static/api.js"></script>           <!-- AirflowApi -->
+<script src="static/map-generator.js"></script> <!-- MapGenerator -->
+<script src="static/entities.js"></script>      <!-- DagBuilding, ChatBubble, Sheep -->
+<script src="static/scene.js"></script>         <!-- GameScene -->
+<script src="static/ui.js"></script>            <!-- openMenu, viewLog, boots Phaser.Game -->
+```
+
+### `constants.js` — shared lookup tables
+
+Defines global constants used across all other files:
+
+```javascript
+const PF = { fontFamily: "'Press Start 2P', monospace", resolution: 3 };
+const TILE_W = 64;
+const TILE_H = 64;
+const PLAYER_SPEED = 280;
+const INTERACT_RADIUS = 140;
+
+const STATE_RIBBON = {
+  success: 'ribbon_blue',
+  running: 'ribbon_yellow',
+  failed:  'ribbon_red',
+  // ...
+};
+```
+
+`getSpriteForDag(dag)` is also here — it maps a DAG's tags and state to the correct building texture key:
+
+```javascript
+function getSpriteForDag(dag) {
+  let buildingType = 'house';
+  if (dag.tags.includes('critical') || dag.dag_id.includes('prod')) buildingType = 'castle';
+  else if (dag.dag_id.includes('sync') || dag.dag_id.includes('etl')) buildingType = 'tower';
+
+  if (dag.state === 'failed') return `${buildingType}_construction`;
+
+  let color = 'blue';
+  if (dag.is_paused)           color = 'purple';
+  else if (dag.state === 'running') color = 'yellow';
+
+  return `${buildingType}_${color}`;  // e.g. "house_yellow", "castle_construction"
+}
+```
+
+### `api.js` — the Airflow API wrapper
+
+All HTTP calls to the plugin backend live in one place. The `BASE` constant is a relative path that resolves correctly on any deployment:
+
+```javascript
+const AirflowApi = (() => {
+  const BASE = 'api';  // resolves to /dagventure/api/
+
+  async function getDags(limit = 100) {
+    const response = await fetch(`${BASE}/dags?limit=${limit}`);
+    if (!response.ok) throw new Error(`getDags failed: ${response.status}`);
+    return response.json();
+  }
+  // ...
+  return { getDags, getDagRuns, getTaskInstances, getTaskLogs, triggerDag, setPaused, deleteDag };
+})();
+```
+
+The module is wrapped in an IIFE (Immediately Invoked Function Expression) — the `(() => { ... })()` pattern. This keeps all the helper functions private and only exposes the public API through the returned object.
+
+### `entities.js` — game objects
+
+Contains three classes:
+
+**`ChatBubble`** — a floating speech bubble above each building showing the DAG state. Built with a NineSlice ribbon and a text object:
+
+```javascript
+class ChatBubble extends Phaser.GameObjects.Container {
+  constructor(scene, text, state) {
+    super(scene, 0, 0);
+    this._bg  = scene.add.nineslice(0, 0, ribbonKey, null, 100, 48, 24, 24, 20, 20);
+    this._txt = scene.add.text(0, -4, text, { ...PF, fontSize: '10px', color: '#fff' });
+    this.add([this._bg, this._txt]);
+  }
+}
+```
+
+**`DagBuilding`** — wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the DAG is running. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
+
+**`Sheep`** — a wandering NPC. Uses a timer event (`scene.time.addEvent`) to periodically pick a random velocity and switch between idle and walk animations. If killed three times total, all DAGs are deleted.
+
+### `scene.js` — the Phaser scene
+
+`GameScene` extends `Phaser.Scene` and is the heart of the game. Key methods:
+
+- **`preload()`** — loads all assets
+- **`create()`** — sets up input handlers, starts the 10-second DAG polling timer, calls `_fetchDags()` immediately
+- **`_fetchDags()`** — fetches all DAGs + their latest runs in parallel, normalizes states, then either builds the world from scratch (first load) or updates existing buildings incrementally (subsequent polls)
+- **`_initWorld(dags)`** — tears down and rebuilds the entire Phaser scene: generates the map, places tiles, spawns buildings, spawns the player and sheep, sets up cameras
+- **`update()`** — called every frame: handles movement input, Y-sorts sprites, drifts clouds, scrolls water, finds the nearest building within interact range
+- **`_handleAttack()`** — deals damage to nearby buildings/sheep when Space is pressed
+- **`_handleInteract()`** — opens the appropriate menu when E is pressed
+
+### `ui.js` — DOM bridge and log viewer
+
+The game's menus and log panels are regular HTML/CSS elements, not Phaser objects. `ui.js` bridges the Phaser game world (JavaScript) with the DOM (HTML):
+
+- **`openMenu(dag)`** — shows the DAG interaction panel with Trigger/Pause/Unpause buttons
+- **`openConversation(dag)`** — shows the goblin dialogue panel with task instance list
+- **`viewLog(dagId, runId, taskId, tryNumber)`** — fetches formatted log text, runs it through a custom `highlight.js` syntax highlighter that colors timestamps, log levels, error keywords, and Python file paths, then injects the highlighted HTML into the log modal
+- Boots `new Phaser.Game(...)` after `document.fonts.ready` resolves (prevents the pixel font from flashing as a fallback font on the first frame)
+
+---
+
+## Game Mechanics in Depth
+
+### The 10-second DAG polling loop
+
+On load, `_fetchDags()` is called immediately. It's also scheduled to run every 10 seconds:
+
+```javascript
+this.time.addEvent({
+  delay: 10000,
+  loop: true,
+  callback: this._fetchDags,
+  callbackScope: this,
+});
+```
+
+Each call fetches the full DAG list, then fires parallel requests for the latest run of each DAG:
+
+```javascript
+const runResults = await Promise.all(
+  rawDags.map(dag => AirflowApi.getDagRuns(dag.dag_id))
+);
+```
+
+`Promise.all` fires all the requests simultaneously and waits for all of them to complete. For 12 DAGs this means 13 requests (1 for the list + 12 for runs) happen concurrently rather than one-at-a-time.
+
+The response is then diffed against the current world state:
+- If a DAG changed state → update the building's sprite and chat bubble
+- If a DAG was deleted externally → destroy the building
+- If a new DAG appeared → find a free spot from the pre-buffered spot list and place a new building
+
+### Combat system
+
+Pressing Space triggers the warrior's attack animation and scans for nearby targets:
+
+```javascript
+this.buildings.forEach(building => {
+  const dist = Phaser.Math.Distance.Between(
+    this.player.x, this.player.y,
+    building.wx, building.wy - 20
+  );
+  if (dist < 120) building.takeDamage();
+});
+```
+
+Buildings and sheep each have 3 HP, shown as heart icons (visible only when you're close or during combat). Three hits destroy a building, triggering an explosion animation and a `DELETE /api/v2/dags/{id}` call.
+
+### The interaction radius and bracket indicators
+
+Every frame in `update()`, the game finds the single nearest building (or goblin worker) within `INTERACT_RADIUS` (140 pixels) of the player:
+
+```javascript
+let nearestBuilding = null;
+let nearestDistance = INTERACT_RADIUS;
+
+this.buildings.forEach(building => {
+  const dist = Phaser.Math.Distance.Between(player.x, player.y, building.wx, building.wy - 30);
+  if (dist < nearestDistance) {
+    nearestBuilding = building;
+    nearestDistance = dist;
+  }
+});
+```
+
+Then `setNear(true/false)` is called on every building. The building that is nearest gets its four corner bracket sprites made visible and starts a looping pulse tween:
+
+```javascript
+this._bracketTween = this.scene.tweens.add({
+  targets: this.corners,
+  scale: { from: CORNER_BASE_SCALE, to: CORNER_PULSE_SCALE },
+  duration: 700,
+  yoyo: true,     // plays forward then backward
+  repeat: -1,     // loops forever
+  ease: 'Sine.easeInOut',
+});
+```
+
+The corner sprites use `setOrigin()` set to their respective corner (top-left has origin 0,0; bottom-right has origin 1,1). When the scale increases, the image grows toward the center of the building — giving the "arms reaching inward" pulse effect.
+
+### Procedurally generated clouds
+
+Clouds are drawn at runtime using Phaser's `Graphics` API rather than loaded as image assets. Three cloud shapes are defined as lists of ellipses (puffs), and the code rasterizes them into textures:
+
+```javascript
+// Each puff: [centerX, centerY, radiusX, radiusY] in grid units
+this._makeCloudTex('cloud_lg', [
+  [13, 2.5, 7, 3],    // large central puff
+  [5,  4,   4, 2.5],  // left puff
+  [9,  3.5, 4, 2.5],  // center-left puff
+  [17, 3.5, 4, 2.5],  // center-right puff
+  [21, 4,   4, 2.5],  // right puff
+], 26, 7);
+```
+
+For each pixel in the output grid, the code checks if it falls inside any of the ellipses using the ellipse equation `(dx/rx)² + (dy/ry)² ≤ 1`. If it does, that pixel is painted white. The result is a blocky, pixel-art cloud texture generated entirely in code.
+
+### Diagonal movement normalization
+
+Without correction, moving diagonally (pressing W+D simultaneously) would be faster than moving straight — you'd be adding two full-speed velocity vectors. The game normalizes by multiplying by `1/√2 ≈ 0.707`:
+
+```javascript
+if (velocityX !== 0 && velocityY !== 0) {
+  velocityX *= 0.707;
+  velocityY *= 0.707;
+}
+```
+
+This keeps the player's actual speed constant regardless of direction.
+
+---
+
+## The Backend: dagventure.py Explained
+
+### JWT token management
+
+The plugin backend needs to call Airflow's own REST API server (as a client) to proxy requests. It authenticates using Airflow's token endpoint:
+
+```python
+def _fetch_fresh_token() -> str:
+    response = requests.post(
+        f"{AIRFLOW_HOST}/auth/token",
+        json={"username": AIRFLOW_USERNAME, "password": AIRFLOW_PASSWORD},
+        timeout=10,
+    )
+    return response.json()["access_token"]
+```
+
+Tokens are cached in memory and automatically refreshed 5 minutes before expiry (Airflow tokens expire after 1 hour):
+
+```python
+_cached_token: str | None = None
+_token_expires_at: float = 0.0
+
+def _get_token() -> str:
+    now = time.monotonic()
+    if _cached_token and now < _token_expires_at:
+        return _cached_token
+    with _token_lock:
+        _cached_token = _fetch_fresh_token()
+        _token_expires_at = now + 55 * 60  # refresh 5 min before the 1-hour expiry
+        return _cached_token
+```
+
+The `_token_lock` is a `threading.Lock` that prevents two concurrent requests from both triggering a token refresh simultaneously (a "thundering herd" scenario).
+
+### Running sync code in an async FastAPI endpoint
+
+FastAPI is async. The `airflow_client` SDK and `requests` library are sync (blocking). You can't call a blocking function directly inside an `async def` endpoint — it would block the entire event loop and freeze all other requests.
+
+The solution is `asyncio.to_thread()`, which runs a blocking function in a separate thread pool thread:
+
+```python
+@app.get("/api/dags")
+async def api_get_dags(limit: int = 100):
+    def _call():  # this is a regular (sync) function
+        with _api_client() as client:
+            api = DAGApi(client)
+            return api.get_dags(limit=limit)
+
+    # Run _call() in a thread — doesn't block the event loop
+    result = await asyncio.to_thread(_call)
+    return {"dags": [...]}
+```
+
+### Static file cache-busting
+
+Every time the API server restarts, a new timestamp is written into `game.html` to force the browser to re-fetch all JS and CSS files:
+
+```python
+_BUILD_TS = str(int(time.time()))
+
+@app.get("/game", response_class=HTMLResponse)
+async def serve_game():
+    html = (STATIC_DIR / "game.html").read_text()
+    html = html.replace("__BUILD_TS__", _BUILD_TS)
+    return HTMLResponse(content=html)
+```
+
+In `game.html`, every script tag includes `?v=__BUILD_TS__`:
+
+```html
+<script src="static/scene.js?v=__BUILD_TS__"></script>
+```
+
+The server replaces `__BUILD_TS__` with the actual timestamp. The browser sees a different URL on each server restart and re-downloads the file.
+
+---
+
+## API Reference
+
+### Plugin proxy endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/dagventure/api/dags` | Lists all active DAGs |
+| `GET` | `/dagventure/api/dags/{id}/runs` | Latest DAG runs |
+| `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks` | Task instances for a run |
+| `GET` | `/dagventure/api/dags/{id}/runs/{run}/tasks/{task}/logs/{n}` | Formatted task log text |
+| `POST` | `/dagventure/api/dags/{id}/trigger` | Trigger a new DAG run |
+| `PATCH` | `/dagventure/api/dags/{id}/pause?is_paused=true` | Pause or unpause a DAG |
+| `DELETE` | `/dagventure/api/dags/{id}` | Delete a DAG |
+
+### Airflow REST API v2 (called by the backend)
+
+| Action | Method + Path |
+|--------|--------------|
+| List DAGs | `GET /api/v2/dags?limit=100` |
+| Latest run | `GET /api/v2/dags/{id}/dagRuns?limit=1&order_by=-start_date` |
+| Trigger run | `POST /api/v2/dags/{id}/dagRuns` body `{}` |
+| Pause/unpause | `PATCH /api/v2/dags/{id}` body `{"is_paused": true/false}` |
+| Delete | `DELETE /api/v2/dags/{id}` |
+| Task instances | `GET /api/v2/dags/{id}/dagRuns/{run_id}/taskInstances` |
+| Task logs | `GET /api/v2/dags/{id}/dagRuns/{run_id}/taskInstances/{task_id}/logs/{try_number}` |
+
+---
+
+## Asset Credits
+
+Pixel art sprites from the **Tiny Swords** pack by [Pixel Frog](https://pixelfrog-assets.itch.io/tiny-swords). Used under the asset pack's license.
