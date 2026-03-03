@@ -1040,3 +1040,5 @@ The server replaces `__BUILD_TS__` with the actual timestamp. The browser sees a
 ## Asset Credits
 
 Pixel art sprites from the **Tiny Swords** pack by [Pixel Frog](https://pixelfrog-assets.itch.io/tiny-swords). Used under the asset pack's license.
+
+![](doc/dagventure-wallpaper.png)
