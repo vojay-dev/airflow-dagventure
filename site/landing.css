@@ -394,7 +394,9 @@ body::before {
   font-family: 'Press Start 2P', monospace;
   font-size: 7px;
   white-space: nowrap;
-  padding: 4px 0 2px;
+  padding: 5px 16px;
+  background: rgba(0, 0, 0, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 #lp-footer-bar a {
