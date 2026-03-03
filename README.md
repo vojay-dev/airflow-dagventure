@@ -1,6 +1,14 @@
 # Dagventure
 
+<p align="center">
+  <img src="doc/dagventure.png" alt="Dagventure" width="480" />
+</p>
+
 An Airflow 3 plugin that turns your Dag list into a playable pixel-art world. Every active Dag becomes a building on a procedurally generated island. Walk your knight around, trigger pipeline runs, read task logs, pause workflows, and destroy broken pipelines with a sword.
+
+<p align="center">
+  <img src="doc/screenshots/screen1.png" alt="Dagventure world overview" width="780" />
+</p>
 
 ```
 [ Browser: Phaser 3 game ]
@@ -21,16 +29,17 @@ An Airflow 3 plugin that turns your Dag list into a playable pixel-art world. Ev
 1. [Prerequisites](#prerequisites)
 2. [Installation](#installation)
 3. [Controls](#controls)
-4. [How Airflow 3 Plugins Work](#how-airflow-3-plugins-work)
-5. [How the Frontend Communicates with Airflow](#how-the-frontend-communicates-with-airflow)
-6. [How Phaser 3 Works — A Beginner's Guide](#how-phaser-3-works--a-beginners-guide)
-7. [How the Procedural Map is Generated](#how-the-procedural-map-is-generated)
-8. [Architecture: File by File](#architecture-file-by-file)
-9. [Game Mechanics in Depth](#game-mechanics-in-depth)
-10. [Visual Effects](#visual-effects)
-11. [The Backend: dagventure.py Explained](#the-backend-dagventurepy-explained)
-12. [API Reference](#api-reference)
-13. [Asset Credits](#asset-credits)
+4. [Screenshots](#screenshots)
+5. [How Airflow 3 Plugins Work](#how-airflow-3-plugins-work)
+6. [How the Frontend Communicates with Airflow](#how-the-frontend-communicates-with-airflow)
+7. [How Phaser 3 Works — A Beginner's Guide](#how-phaser-3-works--a-beginners-guide)
+8. [How the Procedural Map is Generated](#how-the-procedural-map-is-generated)
+9. [Architecture: File by File](#architecture-file-by-file)
+10. [Game Mechanics in Depth](#game-mechanics-in-depth)
+11. [Visual Effects](#visual-effects)
+12. [The Backend: dagventure.py Explained](#the-backend-dagventurepy-explained)
+13. [API Reference](#api-reference)
+14. [Asset Credits](#asset-credits)
 
 ---
 
@@ -91,6 +100,37 @@ The game loads your live Dag list and builds the world. If the API is unreachabl
 | `E` | Interact — opens the Dag menu when near a building, or talks to the goblin worker when the Dag is running |
 | `Space` | Attack — deals 1 HP to the nearest building or sheep within range |
 | `ESC` | Close log modal (first press), then close Dag menu (second press) |
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="doc/screenshots/screen1.png" width="48%" alt="World overview" />
+  &nbsp;
+  <img src="doc/screenshots/screen6.png" width="48%" alt="Night scene with dynamic lighting" />
+</p>
+<p align="center">
+  <em>The procedurally generated island world (day) &nbsp;·&nbsp; Dynamic lighting at night — the player's torch cuts through the darkness</em>
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/screen3.png" width="48%" alt="Proximity indicator" />
+  &nbsp;
+  <img src="doc/screenshots/screen2.png" width="48%" alt="Dag interaction menu" />
+</p>
+<p align="center">
+  <em>Corner brackets pulse when you're close enough to interact &nbsp;·&nbsp; Trigger a run, pause, or unpause from the Dag menu</em>
+</p>
+
+<p align="center">
+  <img src="doc/screenshots/screen4.png" width="48%" alt="Worker Goblin dialogue" />
+  &nbsp;
+  <img src="doc/screenshots/screen5.png" width="48%" alt="Task log viewer" />
+</p>
+<p align="center">
+  <em>Talk to the goblin worker to inspect running tasks &nbsp;·&nbsp; Syntax-highlighted Airflow task logs</em>
+</p>
 
 ---
 
@@ -536,11 +576,11 @@ plugins/
 ├── assets/                ← Pixel art (served at /dagventure/assets/)
 │   ├── factions/knights/  ← Player sprite, building sprites
 │   ├── factions/goblins/  ← Goblin worker sprite
-│   ├── terrain/           ← Ground tiles, water
+│   ├── terrain/           ← Ground tiles, water, pixel-art clouds (01–08)
 │   ├── resources/         ← Trees, sheep
 │   ├── effects/           ← Explosion animation
 │   ├── ui/                ← Banners, ribbons, buttons, icons, pointers
-│   └── deco/              ← Decorative objects 01–18
+│   └── deco/              ← Decorative objects 01–18, bushes (bushe1–4), rocks (rock1–4)
 └── static/                ← Frontend (served at /dagventure/static/)
     ├── game.html          ← Entry point — loads Phaser CDN + scripts in order
     ├── constants.js       ← Shared constants and state lookup tables
@@ -579,6 +619,12 @@ const STATE_RIBBON = {
   running: 'ribbon_yellow',
   failed:  'ribbon_red',
   // ...
+};
+
+const LEVEL_NAMES = {
+  1: 'Wanderer', 2: 'Recruit',  3: 'Soldier',  4: 'Knight',
+  5: 'Guardian', 6: 'Champion', 7: 'Hero',      8: 'Warlord',
+  9: 'Legend',  10: 'MAX RANK',
 };
 ```
 
@@ -656,7 +702,9 @@ The module-level helper `_spawnDamageText(scene, x, y)` is shared by both `DagBu
 - **`_handleAttack()`** — deals damage to nearby buildings/sheep when Space is pressed
 - **`_handleInteract()`** — opens the appropriate menu when E is pressed
 - **`_initDayNight()` / `_updateDayNight()` / `_updateLightMask()`** — day/night cycle: compute overlay colour from cycle position, fill the `RenderTexture`, erase light holes at player and goblin positions
+- **`_rebuildLightMask()`** — (re)creates the `RenderTexture` at the correct canvas size; called once on init and again whenever the browser window is resized
 - **`_createLightTextures()`** — generates radial gradient canvas textures for the two light sizes
+- **`_onDagSuccess()` / `_onLevelUp(level)`** — level progression: increments the success counter, checks for a rank-up, updates the HUD panel, triggers flash and toast
 - **`showToast(msg, type)`** — shows a timed ribbon notification at the top of the screen
 
 ### `ui.js` — DOM bridge and log viewer
@@ -748,22 +796,53 @@ this._bracketTween = this.scene.tweens.add({
 
 The corner sprites use `setOrigin()` set to their respective corner (top-left has origin 0,0; bottom-right has origin 1,1). When the scale increases, the image grows toward the center of the building — giving the "arms reaching inward" pulse effect.
 
-### Procedurally generated clouds
+### Knight level progression
 
-Clouds are drawn at runtime using Phaser's `Graphics` API rather than loaded as image assets. Three cloud shapes are defined as lists of ellipses (puffs), and the code rasterizes them into textures:
+Every successful Dag run advances the player's knight rank. The current level and rank name are shown in the top-left HUD panel, just below the Dag counter. Levels run from 1 (Wanderer) to 10 (MAX RANK), with a new title unlocking at each step.
+
+When the 10-second polling loop detects a Dag transitioning into `success` state, it calls `_onDagSuccess()`:
 
 ```javascript
-// Each puff: [centerX, centerY, radiusX, radiusY] in grid units
-this._makeCloudTex('cloud_lg', [
-  [13, 2.5, 7, 3],    // large central puff
-  [5,  4,   4, 2.5],  // left puff
-  [9,  3.5, 4, 2.5],  // center-left puff
-  [17, 3.5, 4, 2.5],  // center-right puff
-  [21, 4,   4, 2.5],  // right puff
-], 26, 7);
+_onDagSuccess() {
+  this.dagSuccessCount++;
+  const newLevel = Math.min(10, this.dagSuccessCount + 1);
+  if (newLevel > this._playerLevel) {
+    this._playerLevel = newLevel;
+    this._onLevelUp(newLevel);
+  }
+}
 ```
 
-For each pixel in the output grid, the code checks if it falls inside any of the ellipses using the ellipse equation `(dx/rx)² + (dy/ry)² ≤ 1`. If it does, that pixel is painted white. The result is a blocky, pixel-art cloud texture generated entirely in code.
+A level-up triggers three simultaneous feedback events:
+
+1. **Toast banner** — `"LEVEL UP! LVL X — RankName"` using the blue ribbon style
+2. **White screen flash** — `#level-flash` (a full-screen CSS overlay) fades in to 40% opacity then back to transparent over 0.4 seconds
+3. **HUD pulse** — a `levelUpPulse` CSS animation scales the level panel from 1 → 1.3 → 1 over 600 ms
+
+The HUD panel updates its text immediately:
+
+```javascript
+document.getElementById('level-text').textContent = `LVL ${level}`;
+document.getElementById('level-name').textContent  = LEVEL_NAMES[level];
+```
+
+### Pixel-art clouds
+
+Clouds use real pixel-art sprites from the Tiny Swords asset pack — eight variants loaded from `assets/terrain/clouds/clouds_01.png` through `clouds_08.png`. In `_createClouds()`, 60 cloud instances are scattered at random world positions, each picking a random variant:
+
+```javascript
+const key = Phaser.Utils.Array.GetRandom(
+  ['cloud_01', 'cloud_02', 'cloud_03', 'cloud_04',
+   'cloud_05', 'cloud_06', 'cloud_07', 'cloud_08']
+);
+const cloud = this.add.image(wx, wy, key)
+  .setScale(0.5)
+  .setAlpha(Phaser.Math.FloatBetween(0.55, 0.85))
+  .setDepth(9000);
+cloud.velX = Phaser.Math.FloatBetween(4, 12);
+```
+
+Each cloud has a `velX` drift speed. Every frame in `update()`, the position advances and wraps around when the cloud passes the right edge of the world, so the sky stays populated without ever running out of clouds. All cloud objects are added to `this.minimap.ignore()` so they don't clutter the minimap.
 
 ### Diagonal movement normalization
 
@@ -797,7 +876,7 @@ if (this._dagStateCache) {
 this._dagStateCache = Object.fromEntries(dags.map(d => [d.dag_id, d.state]));
 ```
 
-`showToast()` sets the `data-type` attribute on the `#toast` element, which CSS uses to pick the right ribbon color and icon via attribute selectors.
+`showToast()` sets the `data-type` attribute on the `#toast` element, which CSS uses to pick the right ribbon color via attribute selectors. A `success` transition also calls `_onDagSuccess()`, which may trigger a knight level-up (see below).
 
 ### Floating damage numbers
 
@@ -849,15 +928,15 @@ this._lightMask.clear();
 this._lightMask.fill(hexColor, this._nightAlpha);
 
 // Erase a circle of darkness around the player
-const px = (this.player.x - cam.scrollX) + 100;
-const py = (this.player.y - cam.scrollY) + 100;
+const px = (this.player.x - cam.scrollX) + 200;
+const py = (this.player.y - cam.scrollY) + 200;
 this._lightMask.erase('light_lg', px - 150, py - 150);
 
 // Smaller light for each goblin torch
 this.buildings.forEach(b => {
   if (!b.worker) return;
-  const wx = (b.worker.x - cam.scrollX) + 100;
-  const wy = (b.worker.y - cam.scrollY) + 100;
+  const wx = (b.worker.x - cam.scrollX) + 200;
+  const wy = (b.worker.y - cam.scrollY) + 200;
   this._lightMask.erase('light_sm', wx - 90, wy - 90);
 });
 ```
@@ -873,9 +952,15 @@ grad.addColorStop(1,    'rgba(255,255,255,0.0)');  // darkness at the edge
 
 When this white gradient is used with `rt.erase()`, it removes the corresponding amount of the darkness fill — creating a soft glowing light source effect.
 
-**Why `setScrollFactor(0)`:**
+**Why `setScrollFactor(0)` and the resize listener:**
 
-The `RenderTexture` uses `setScrollFactor(0)` so it stays fixed to the screen even as the camera moves. The `+100` pixel offset compensates for the fact that the RT is positioned at `(-100, -100)` to add a small overflow margin that prevents edge clipping when the player is near the screen edge.
+The `RenderTexture` uses `setScrollFactor(0)` so it stays fixed to the screen even as the camera moves. The `+200` pixel offset compensates for the fact that the RT is positioned at `(-200, -200)` — a 200-pixel overflow margin on every side prevents edge clipping when the player is near the screen boundary.
+
+Because Phaser's `Scale.RESIZE` mode lets the canvas grow or shrink when the browser window is resized, the `RenderTexture` must be recreated at the new size to avoid strips of unmasked darkness at the edges. This is handled by `_rebuildLightMask()`, which uses `this.scale.width` and `this.scale.height` (the actual canvas dimensions, not `window.innerWidth`), and is wired up via:
+
+```javascript
+this.scale.on('resize', this._rebuildLightMask, this);
+```
 
 **Phase timeline:**
 
@@ -891,7 +976,7 @@ The `RenderTexture` uses `setScrollFactor(0)` so it stays fixed to the screen ev
 
 ### Day/night time indicator (bottom HUD)
 
-A bottom-centre bar shows where in the cycle the game currently is. A sun icon on the left represents day; a moon icon on the right represents night. A small circular marker slides along the bar:
+A bottom-centre panel shows where in the cycle the game currently is. A sun icon on the left represents day; a moon icon on the right represents night. A small gold square marker slides along the track between them:
 
 ```javascript
 // markerPos: 0 = full day, 1 = full night
@@ -899,7 +984,7 @@ const markerPos = t <= 0.55 ? t / 0.55 : 1 - (t - 0.55) / 0.45;
 document.getElementById('time-marker').style.left = `${(markerPos * 100).toFixed(1)}%`;
 ```
 
-The bar background uses `healthbarpanel_160x41.png` (a pixel-art panel from the UI asset pack) via CSS `background-image`. The track is `valuebar_128x16.png` and the sliding marker is `blackbigcircleboxwithborder_27x27.png`.
+The panel uses the same `carved_9slides.png` CSS `border-image` as the other HUD panels for visual consistency. The sliding marker is a pure CSS element — a `10×14px` gold square (`#ffe066`) with a dark pixel-art border, positioned absolutely inside the flex track. No image asset needed for the marker.
 
 Phase transition labels ("SUNSET APPROACHES...", "NIGHTFALL", "DAWN BREAKS") appear at `#time-label` below the bar for 3 seconds using `_showTimeLabel()`.
 

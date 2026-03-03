@@ -44,6 +44,8 @@ class GameScene extends Phaser.Scene {
       this.load.spritesheet(`bushe${i}`, `assets/deco/bushe${i}.png`, { frameWidth: 128, frameHeight: 128 });
       this.load.image(`rock${i}`, `assets/deco/rock${i}.png`);
     }
+
+    this.load.image('splash_logo', 'assets/dagventure.png');
   }
 
   create() {
@@ -55,6 +57,7 @@ class GameScene extends Phaser.Scene {
     this.sheepsKilled = 0;
     this.dagSuccessCount = 0;
     this._playerLevel = 1;
+    this._splashShown = false;
     this.obstacles = this.physics.add.staticGroup();
     this.buildingsGroup = this.physics.add.group({ immovable: true });
 
@@ -173,6 +176,22 @@ class GameScene extends Phaser.Scene {
     this.buildings = [];
     this.npcs = [];
 
+    if (!this._splashShown) {
+      this._splashShown = true;
+      const cx = this.scale.width / 2;
+      const cy = this.scale.height / 2;
+      this._splashBg = this.add.rectangle(cx, cy, this.scale.width + 400, this.scale.height + 400, 0x000000)
+        .setAlpha(0.8).setScrollFactor(0).setDepth(98000);
+      this._splashImg = this.add.image(cx, cy, 'splash_logo')
+        .setScrollFactor(0).setDepth(98001);
+      this.textures.get('splash_logo').setFilter(Phaser.Textures.FilterMode.LINEAR);
+      const s = Math.min(
+        (this.scale.width  * 0.65) / this._splashImg.width,
+        (this.scale.height * 0.65) / this._splashImg.height
+      );
+      this._splashImg.setScale(s);
+    }
+
     this.gen = new MapGenerator(dags.length);
     const worldWidth  = this.gen.cols * 64;
     const worldHeight = this.gen.rows * 64;
@@ -270,10 +289,26 @@ class GameScene extends Phaser.Scene {
       this.minimap.ignore(building.corners);
     });
     this.minimap.ignore([this.sheepBanner, this.sheepText]);
+    if (this._splashBg) this.minimap.ignore([this._splashBg, this._splashImg]);
 
     this._createClouds(worldWidth, worldHeight);
     this._initDayNight();
     this._createTitleBanner();
+
+    if (this._splashBg) {
+      setTimeout(() => {
+        this.tweens.add({
+          targets: [this._splashBg, this._splashImg],
+          alpha: 0,
+          duration: 900,
+          ease: 'Power2',
+          onComplete: () => {
+            this._splashBg.destroy(); this._splashBg = null;
+            this._splashImg.destroy(); this._splashImg = null;
+          },
+        });
+      }, 2000);
+    }
   }
 
   _createTitleBanner() {
