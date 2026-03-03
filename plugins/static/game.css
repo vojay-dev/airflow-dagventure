@@ -441,4 +441,32 @@ body {
 #log-content .hljs-log-exception { color: #ff8800; font-weight: bold; }
 #log-content .hljs-log-path      { color: #88aaff; }
 
+/* Footer credits (bottom-left) */
+#footer {
+  position: absolute;
+  bottom: 8px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: all;
+  z-index: 50;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+#footer a {
+  color: rgba(255, 255, 255, 0.55);
+  text-decoration: none;
+  text-shadow: 1px 1px 0 #000;
+  transition: color 0.15s;
+}
+
+#footer a:hover { color: #ffe066; }
+
+.footer-sep {
+  color: rgba(255, 255, 255, 0.3);
+  text-shadow: 1px 1px 0 #000;
+}
+
 .hidden { display: none !important; }
