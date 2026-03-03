@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dagventure — Airflow 3 Plugin</title>
+  <meta name="description" content="An Airflow 3 plugin that turns your Dag list into a playable pixel-art world. Every active Dag becomes a building on a procedurally generated island." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="landing.css" />
+</head>
+<body>
+
+  <!-- ── Logo zone (top-center, transparent) ── -->
+  <div id="lp-logo-zone">
+    <img src="assets/dagventure.png" alt="Dagventure" id="lp-logo" />
+    <p id="lp-tagline-top">Open-source Airflow 3 Plugin</p>
+    <a href="https://github.com/vojay-dev/airflow-dagventure" id="lp-hero-btn" target="_blank" rel="noopener">★ View on GitHub</a>
+  </div>
+
+  <!-- ── Phaser canvas lives here ── -->
+  <div id="game-container"></div>
+
+  <!-- ── Full-width bottom feature strip ── -->
+  <div id="lp-bottom">
+
+    <div class="lp-feat">
+      <div class="lp-feat-ribbon lp-feat-ribbon-yellow">
+        <span class="lp-feat-title">AIRFLOW PLUGIN</span>
+      </div>
+      <div class="lp-feat-body">
+        <p>Airflow 3 lets plugins embed custom FastAPI apps directly into the UI. Dagventure is one such plugin: no extra server, no sidecar. Copy plugins/ and restart.</p>
+      </div>
+    </div>
+
+    <div class="lp-feat">
+      <div class="lp-feat-ribbon">
+        <span class="lp-feat-title">DAGS AS BUILDINGS</span>
+      </div>
+      <div class="lp-feat-body">
+        <p>Every active Dag becomes a building on a living island. Color reflects real state: blue (success), yellow (running), red (failed), purple (paused). Refreshes every 10 seconds.</p>
+      </div>
+    </div>
+
+    <div class="lp-feat">
+      <div class="lp-feat-ribbon lp-feat-ribbon-red">
+        <span class="lp-feat-title">LIVE LOGS</span>
+      </div>
+      <div class="lp-feat-body">
+        <p>Running Dags spawn goblin workers. Interact to browse task instances and read live logs pulled directly from your Airflow API. Failed Dags can be deleted from the UI.</p>
+      </div>
+    </div>
+
+    <div class="lp-feat">
+      <div class="lp-feat-ribbon lp-feat-ribbon-yellow">
+        <span class="lp-feat-title">GET STARTED</span>
+      </div>
+      <div class="lp-feat-body">
+        <p>Works with Astronomer Astro and any Airflow 3 setup.</p>
+        <ol class="lp-steps">
+          <li>Copy <code>plugins/</code> to your project</li>
+          <li>Run <code>astro dev restart</code></li>
+          <li>Click Dagventure in the nav bar</li>
+        </ol>
+        <a href="https://github.com/vojay-dev/airflow-dagventure" class="lp-feat-cta" target="_blank" rel="noopener">View on GitHub →</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Mobile fallback: shown below 768px instead of the game ── -->
+  <section id="mobile-fallback">
+    <img src="assets/dagventure.png" alt="Dagventure" class="mob-logo" />
+    <p class="mob-tagline">Your Airflow 3 Dags are buildings.</p>
+    <p class="mob-sub">An open-source Airflow 3 plugin that turns pipeline monitoring into a pixel-art adventure.</p>
+    <img src="screenshots/screen1.png" alt="Dagventure world overview" class="mob-screen" />
+
+    <div class="mob-features">
+      <div class="mob-feature">
+        <span class="mob-feat-title">Airflow 3 Plugin</span>
+        <span class="mob-feat-desc">Airflow 3 lets plugins embed custom FastAPI apps into the UI. Dagventure requires no extra server: copy plugins/ and restart.</span>
+      </div>
+      <div class="mob-feature">
+        <span class="mob-feat-title">Live Dag Status</span>
+        <span class="mob-feat-desc">Buildings change appearance based on real Dag state. Blue = success, yellow = running, red = failed, purple = paused.</span>
+      </div>
+      <div class="mob-feature">
+        <span class="mob-feat-title">Live Log Viewer</span>
+        <span class="mob-feat-desc">Talk to goblin workers on running Dags to inspect task instances and read logs pulled from your Airflow API.</span>
+      </div>
+      <div class="mob-feature">
+        <span class="mob-feat-title">Delete Failed Dags</span>
+        <span class="mob-feat-desc">Attack failed Dag buildings with your sword. 3 hits triggers an explosion and deletes the Dag from Airflow.</span>
+      </div>
+    </div>
+
+    <div class="mob-install">
+      <p class="mob-install-title">Install in 3 steps</p>
+      <ol class="mob-steps">
+        <li>Copy <code>plugins/</code> to your Airflow project</li>
+        <li>Restart the API server: <code>astro dev restart</code></li>
+        <li>Click <strong>Dagventure</strong> in the Airflow nav bar</li>
+      </ol>
+    </div>
+
+    <div class="mob-screenshots">
+      <img src="screenshots/screen2.png" alt="Dag interaction menu" />
+      <img src="screenshots/screen6.png" alt="Night scene" />
+    </div>
+
+    <a href="https://github.com/vojay-dev/airflow-dagventure" class="lp-feat-cta mob-cta" target="_blank" rel="noopener">View on GitHub →</a>
+    <p class="mob-credit">Pixel art by <a href="https://pixelfrog-assets.itch.io/tiny-swords" target="_blank">Pixel Frog</a> · Built with Airflow 3 &amp; Phaser 3</p>
+  </section>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="landing.js"></script>
+</body>
+</html>

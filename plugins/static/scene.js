@@ -628,6 +628,13 @@ class GameScene extends Phaser.Scene {
 
     this.sheeps.forEach(sheep => sheep.update());
 
+    if (this.clouds) {
+      this.clouds.forEach(cloud => {
+        cloud.x += cloud._driftSpeed;
+        if (cloud.x > cloud._worldWidth) cloud.x = 0;
+      });
+    }
+
     if (this.menuOpen) { this.player.setVelocity(0); return; }
     if (this.isAttacking) return;
 
@@ -686,13 +693,6 @@ class GameScene extends Phaser.Scene {
     }
 
     this.npcs.forEach(npc => npc.setDepth(npc.y));
-
-    if (this.clouds) {
-      this.clouds.forEach(cloud => {
-        cloud.x += cloud._driftSpeed;
-        if (cloud.x > cloud._worldWidth) cloud.x = 0;
-      });
-    }
   }
 
   _handleInteract() {

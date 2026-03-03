@@ -1,0 +1,386 @@
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #0d0d18;
+  font-family: 'Inter', sans-serif;
+  color: #fff;
+}
+
+/* ── Game canvas fills everything ── */
+#game-container {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+}
+
+#game-container canvas {
+  display: block;
+}
+
+/* ── Cinematic vignette around edges ── */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.5) 100%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Gradient behind logo for readability ── */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 420px;
+  background: linear-gradient(to bottom, rgba(8,6,18,0.7) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 599;
+}
+
+/* ════════════════════════════════════════
+   LOGO ZONE (top-center)
+   ════════════════════════════════════════ */
+#lp-logo-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 18px;
+  z-index: 600;
+  pointer-events: none;
+  user-select: none;
+}
+
+#lp-logo {
+  height: 300px;
+  image-rendering: auto;
+  filter: drop-shadow(0 10px 48px rgba(0,0,0,0.92));
+}
+
+#lp-tagline-top {
+  margin-top: 14px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 11px;
+  color: rgba(255,255,255,0.9);
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  text-shadow: 0 2px 16px rgba(0,0,0,1), 0 0 8px rgba(0,0,0,0.8);
+}
+
+/* ── Prominent GitHub hero button (below tagline) ── */
+#lp-hero-btn {
+  margin-top: 18px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 10px;
+  color: #0d0d18;
+  background: #ffe066;
+  text-decoration: none;
+  padding: 12px 28px;
+  letter-spacing: 0.06em;
+  transition: background 0.15s, transform 0.1s;
+  image-rendering: pixelated;
+  pointer-events: auto;
+  filter: drop-shadow(0 4px 16px rgba(0,0,0,0.8));
+}
+
+#lp-hero-btn:hover {
+  background: #fff;
+  transform: translateY(-2px);
+}
+
+/* ════════════════════════════════════════
+   BOTTOM FEATURE STRIP
+   ════════════════════════════════════════ */
+#lp-bottom {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  gap: 14px;
+  padding: 0 24px 20px;
+  background: transparent;
+}
+
+.lp-feat {
+  flex: 1;
+  max-width: 340px;
+  min-width: 0;
+  image-rendering: pixelated;
+  border-style: solid;
+  border-width: 18px;
+  border-image: url('assets/ui/banners/carved_9slides.png') 48 fill round;
+  padding: 2px 0 4px;
+}
+
+.lp-feat-ribbon {
+  width: calc(100% + 12px);
+  margin: -3px -6px 10px;
+  height: 44px;
+  background-image: url('assets/ui/ribbons/ribbon_blue_3slides.png');
+  background-size: 100% 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12px;
+}
+
+.lp-feat-ribbon-red    { background-image: url('assets/ui/ribbons/ribbon_red_3slides.png'); }
+.lp-feat-ribbon-yellow { background-image: url('assets/ui/ribbons/ribbon_yellow_3slides.png'); }
+
+.lp-feat-title {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  color: #fff;
+  text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+  letter-spacing: 0.05em;
+}
+
+.lp-feat-body {
+  padding: 0 10px 4px;
+}
+
+.lp-feat-body p {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.65;
+  color: #2c1a0a;
+}
+
+.lp-steps {
+  margin-top: 8px;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lp-steps li {
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  line-height: 1.55;
+  color: #2c1a0a;
+}
+
+.lp-steps code {
+  font-family: monospace;
+  background: rgba(0,0,0,0.08);
+  padding: 1px 5px;
+  color: #8b3a00;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lp-feat-cta {
+  display: inline-block;
+  margin-top: 10px;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 8px;
+  color: #0d0d18;
+  background: #ffe066;
+  text-decoration: none;
+  padding: 9px 16px;
+  letter-spacing: 0.05em;
+  transition: background 0.15s, transform 0.1s;
+  image-rendering: pixelated;
+}
+
+.lp-feat-cta:hover {
+  background: #fff;
+  transform: translateY(-2px);
+}
+
+/* ════════════════════════════════════════
+   RESPONSIVE — NARROWER DESKTOPS
+   ════════════════════════════════════════ */
+@media (max-width: 1300px) {
+  #lp-logo { height: 240px; }
+
+  #lp-bottom {
+    gap: 10px;
+    padding: 14px 16px 20px;
+  }
+
+  .lp-feat { max-width: 290px; }
+
+  .lp-feat-body p,
+  .lp-steps li { font-size: 12px; color: #2c1a0a; }
+}
+
+@media (max-width: 1024px) {
+  #lp-logo { height: 200px; }
+
+  #lp-tagline-top { font-size: 8px; }
+
+  #lp-bottom {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 12px 16px;
+    max-height: 55vh;
+    overflow-y: auto;
+  }
+
+  .lp-feat {
+    flex: 1 1 calc(50% - 8px);
+    max-width: none;
+  }
+
+  .lp-feat-body p,
+  .lp-steps li { font-size: 11px; color: #2c1a0a; }
+}
+
+/* ════════════════════════════════════════
+   MOBILE FALLBACK
+   ════════════════════════════════════════ */
+#mobile-fallback { display: none; }
+
+@media (max-width: 767px) {
+  html, body { overflow: auto; }
+
+  #game-container,
+  #lp-logo-zone,
+  #lp-bottom { display: none !important; }
+
+  #mobile-fallback {
+    display: block;
+    padding: 32px 20px 60px;
+    background: #0d0d18;
+    min-height: 100vh;
+  }
+
+  .mob-logo {
+    display: block;
+    width: 260px;
+    margin: 0 auto 24px;
+    image-rendering: auto;
+  }
+
+  .mob-tagline {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 13px;
+    line-height: 2;
+    color: #ffe066;
+    text-align: center;
+    margin-bottom: 16px;
+  }
+
+  .mob-sub {
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.75);
+    text-align: center;
+    margin-bottom: 28px;
+  }
+
+  .mob-screen {
+    display: block;
+    width: 100%;
+    border: 2px solid rgba(255,224,102,0.2);
+    margin-bottom: 36px;
+  }
+
+  .mob-features {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 36px;
+  }
+
+  .mob-feature {
+    border: 1px solid rgba(255,224,102,0.2);
+    padding: 16px;
+    background: rgba(255,255,255,0.03);
+  }
+
+  .mob-feat-title {
+    display: block;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: #ffe066;
+    margin-bottom: 10px;
+  }
+
+  .mob-feat-desc {
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.75);
+  }
+
+  .mob-install {
+    background: rgba(255,224,102,0.06);
+    border: 1px solid rgba(255,224,102,0.2);
+    padding: 20px;
+    margin-bottom: 32px;
+  }
+
+  .mob-install-title {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 8px;
+    color: #ffe066;
+    margin-bottom: 16px;
+  }
+
+  .mob-steps {
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .mob-steps li {
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .mob-steps code {
+    font-family: monospace;
+    background: rgba(255,255,255,0.1);
+    padding: 2px 5px;
+    color: #ffe066;
+    font-size: 12px;
+  }
+
+  .mob-screenshots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 32px;
+  }
+
+  .mob-screenshots img {
+    width: 100%;
+    border: 1px solid rgba(255,224,102,0.15);
+  }
+
+  .mob-cta {
+    display: block;
+    text-align: center;
+    margin-bottom: 24px;
+    font-size: 9px;
+    padding: 14px 24px;
+  }
+
+  .mob-credit {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    text-align: center;
+  }
+
+  .mob-credit a {
+    color: rgba(255,224,102,0.6);
+    text-decoration: none;
+  }
+}
+
+.hidden { display: none !important; }
