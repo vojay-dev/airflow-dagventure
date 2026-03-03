@@ -105,10 +105,11 @@ body::before {
   right: 0;
   z-index: 500;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   align-items: stretch;
   gap: 14px;
-  padding: 0 24px 20px;
+  padding: 0 24px 8px;
   background: transparent;
 }
 
@@ -383,37 +384,34 @@ body::before {
   }
 }
 
-/* ── Site footer (desktop: fixed overlay at bottom-centre) ── */
-#site-footer {
-  position: fixed;
-  bottom: 5px;
-  left: 0;
-  right: 0;
+/* ── Footer bar inside feature strip ── */
+#lp-footer-bar {
+  flex-basis: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 10px;
-  z-index: 600;
   font-family: 'Press Start 2P', monospace;
   font-size: 7px;
   white-space: nowrap;
-  pointer-events: none;
+  padding: 4px 0 2px;
 }
 
-#site-footer a {
-  color: rgba(255, 255, 255, 0.4);
+#lp-footer-bar a {
+  color: rgba(255, 255, 255, 0.55);
   text-decoration: none;
   text-shadow: 1px 1px 0 #000;
   transition: color 0.15s;
-  pointer-events: auto;
 }
 
-#site-footer a:hover { color: #ffe066; }
+#lp-footer-bar a:hover { color: #ffe066; }
 
-.sf-sep { color: rgba(255, 255, 255, 0.2); }
+.sf-sep {
+  color: rgba(255, 255, 255, 0.3);
+  text-shadow: 1px 1px 0 #000;
+}
 
 @media (max-width: 767px) {
-  #site-footer { display: none; }
   .mob-footer-credits { margin-top: 12px; }
 }
 
