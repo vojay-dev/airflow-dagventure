@@ -383,4 +383,38 @@ body::before {
   }
 }
 
+/* ── Site footer (desktop: fixed overlay at bottom-centre) ── */
+#site-footer {
+  position: fixed;
+  bottom: 5px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  z-index: 600;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 7px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#site-footer a {
+  color: rgba(255, 255, 255, 0.4);
+  text-decoration: none;
+  text-shadow: 1px 1px 0 #000;
+  transition: color 0.15s;
+  pointer-events: auto;
+}
+
+#site-footer a:hover { color: #ffe066; }
+
+.sf-sep { color: rgba(255, 255, 255, 0.2); }
+
+@media (max-width: 767px) {
+  #site-footer { display: none; }
+  .mob-footer-credits { margin-top: 12px; }
+}
+
 .hidden { display: none !important; }
