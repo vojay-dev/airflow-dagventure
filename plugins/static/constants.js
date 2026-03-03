@@ -35,6 +35,12 @@ const STATE_LABEL = {
   never_run: 'New',
 };
 
+const LEVEL_NAMES = {
+  1: 'Wanderer', 2: 'Recruit',  3: 'Soldier',  4: 'Knight',
+  5: 'Guardian', 6: 'Champion', 7: 'Hero',      8: 'Warlord',
+  9: 'Legend',  10: 'MAX RANK',
+};
+
 function getSpriteForDag(dag) {
   let buildingType = 'house';
 

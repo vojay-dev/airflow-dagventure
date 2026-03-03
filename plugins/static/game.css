@@ -56,15 +56,15 @@ body {
   min-width: 150px;
 }
 
-#hud-dags-panel::before {
-  content: '⚔ ';
-  color: #7a5a2a;
-}
-
 #hud-dags {
-  font-size: 9px;
+  font-size: 11px;
   color: #2e1f0e;
   text-shadow: 1px 1px 0 rgba(255,255,255,0.45);
+}
+
+.hud-count {
+  color: #1a8a3a;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.3);
 }
 
 /* Controls hint (top-right) */
@@ -72,20 +72,38 @@ body {
   border: 24px solid transparent;
   border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
   padding: 4px 14px;
-  min-width: 150px;
+  min-width: 130px;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .hud-hint-line {
-  font-size: 8px;
-  color: #2e1f0e;
-  text-shadow: 1px 1px 0 rgba(255,255,255,0.45);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   white-space: nowrap;
+}
+
+.hud-key {
+  display: inline-block;
+  background: #ffe066;
+  color: #2e1f0e;
+  border: 2px solid #8b5e00;
+  padding: 1px 5px;
+  min-width: 22px;
+  text-align: center;
+  font-size: 9px;
+  font-family: 'Press Start 2P', monospace;
+  flex-shrink: 0;
+}
+
+.hud-hint-desc {
+  font-size: 10px;
+  color: #2e1f0e;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.5);
 }
 
 /* Day/night time indicator (bottom-centre) */
@@ -96,40 +114,43 @@ body {
   transform: translateX(-50%);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   pointer-events: none;
   z-index: 50;
-  background: url('../assets/ui/more/healthbarpanel_160x41.png') no-repeat center / 100% 100%;
-  padding: 6px 14px;
-  min-width: 230px;
+  border: 20px solid transparent;
+  border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
+  padding: 2px 12px;
+  min-width: 200px;
 }
 
 .time-icon {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   image-rendering: pixelated;
   display: block;
   flex-shrink: 0;
-  opacity: 1;
   filter: drop-shadow(0 0 4px rgba(255, 230, 100, 0.9));
 }
 
 #time-track {
   flex: 1;
-  height: 16px;
-  background: url('../assets/ui/more/valuebar_128x16.png') no-repeat center / 100% 100%;
+  height: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(0, 0, 0, 0.5);
   position: relative;
+  border-radius: 1px;
 }
 
-/* Gold-bordered circle marker */
+/* Pixel-art square marker */
 #time-marker {
-  width: 22px;
-  height: 22px;
+  width: 10px;
+  height: 14px;
   position: absolute;
-  top: -3px;
+  top: 50%;
   left: 0%;
-  transform: translateX(-50%);
-  background: url('../assets/ui/more/blackbigcircleboxwithborder_27x27.png') no-repeat center / contain;
+  transform: translate(-50%, -50%);
+  background: #ffe066;
+  border: 2px solid #6b4000;
   image-rendering: pixelated;
 }
 
@@ -148,6 +169,71 @@ body {
   pointer-events: none;
   white-space: nowrap;
   z-index: 50;
+}
+
+/* Level panel (top-left, below DAG counter) */
+#level-panel {
+  position: absolute;
+  top: 104px;
+  left: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  z-index: 50;
+  border: 24px solid transparent;
+  border-image: url('../assets/ui/banners/carved_9slides.png') 48 fill round;
+  padding: 4px 10px;
+  min-width: 130px;
+}
+
+#level-icon {
+  width: 22px;
+  height: 22px;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 3px rgba(255, 220, 80, 0.8));
+}
+
+#level-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#level-text {
+  font-size: 12px;
+  color: #ffe066;
+  text-shadow: 1px 1px 0 #000, 2px 2px 0 #000;
+  white-space: nowrap;
+}
+
+#level-name {
+  font-size: 9px;
+  color: #cce8ff;
+  text-shadow: 1px 1px 0 #000;
+  white-space: nowrap;
+}
+
+@keyframes levelUpPulse {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+.level-up-pulse {
+  animation: levelUpPulse 600ms ease;
+}
+
+/* Level-up flash overlay */
+#level-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 9998;
+  transition: opacity 0.4s;
 }
 
 /* Toast notification */
@@ -234,7 +320,7 @@ body {
   background-size: 100% 100%;
   text-transform: uppercase;
   text-shadow: 2px 2px 0 #000;
-  padding-bottom: 8px;
+  padding-bottom: 22px;
 }
 
 .panel-title.ribbon-blue { background-image: url('../assets/ui/ribbons/ribbon_blue_3slides.png'); }

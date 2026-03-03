@@ -19,7 +19,7 @@ class ChatBubble extends Phaser.GameObjects.Container {
     this._bg = scene.add.nineslice(0, 0, ribbonKey, null, 100, 48, 24, 24, 20, 20);
     this._bg.setOrigin(0.5, 0.5);
 
-    this._txt = scene.add.text(0, -4, text, {
+    this._txt = scene.add.text(0, -10, text, {
       ...PF, fontSize: '10px', color: '#ffffff', stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5, 0.5);
 

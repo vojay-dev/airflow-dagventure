@@ -36,6 +36,14 @@ class GameScene extends Phaser.Scene {
     this.load.image('pointer_tr', 'assets/ui/pointers/04.png');
     this.load.image('pointer_bl', 'assets/ui/pointers/05.png');
     this.load.image('pointer_br', 'assets/ui/pointers/06.png');
+
+    for (let i = 1; i <= 8; i++) {
+      this.load.image(`cloud_0${i}`, `assets/terrain/clouds/clouds_0${i}.png`);
+    }
+    for (let i = 1; i <= 4; i++) {
+      this.load.spritesheet(`bushe${i}`, `assets/deco/bushe${i}.png`, { frameWidth: 128, frameHeight: 128 });
+      this.load.image(`rock${i}`, `assets/deco/rock${i}.png`);
+    }
   }
 
   create() {
@@ -45,6 +53,8 @@ class GameScene extends Phaser.Scene {
     this.buildings = [];
     this.npcs = [];
     this.sheepsKilled = 0;
+    this.dagSuccessCount = 0;
+    this._playerLevel = 1;
     this.obstacles = this.physics.add.staticGroup();
     this.buildingsGroup = this.physics.add.group({ immovable: true });
 
@@ -102,14 +112,15 @@ class GameScene extends Phaser.Scene {
         };
       });
 
-      document.getElementById('hud-dags').textContent = `${dags.length} DAGs Online`;
+      document.getElementById('hud-dags').innerHTML = `<span class="hud-count">${dags.length}</span> Dags Online`;
 
       if (this._dagStateCache) {
         const changed = dags.filter(d => this._dagStateCache[d.dag_id] && this._dagStateCache[d.dag_id] !== d.state);
-        const failed  = changed.find(d => d.state === 'failed');
-        const success = changed.find(d => d.state === 'success');
-        if (failed)       this.showToast(`${failed.dag_id} FAILED!`, 'danger');
-        else if (success) this.showToast(`${success.dag_id} COMPLETE`, 'success');
+        const failed   = changed.find(d => d.state === 'failed');
+        const successes = changed.filter(d => d.state === 'success');
+        if (failed)                this.showToast(`${failed.dag_id} FAILED!`, 'danger');
+        else if (successes.length) this.showToast(`${successes[0].dag_id} COMPLETE`, 'success');
+        successes.forEach(() => this._onDagSuccess());
       }
       this._dagStateCache = Object.fromEntries(dags.map(d => [d.dag_id, d.state]));
 
@@ -278,46 +289,23 @@ class GameScene extends Phaser.Scene {
       bx, by, 'ribbon_blue', null, bannerW, bannerH, 24, 24, 14, 14
     ).setOrigin(0.5, 0).setScrollFactor(0).setDepth(10002);
 
-    this._bannerTitle = this.add.text(bx, by + bannerH / 2, 'DAGVENTURE', {
+    this._bannerTitle = this.add.text(bx, by + bannerH * 0.38, 'DAGVENTURE', {
       ...PF, fontSize: '14px', color: '#ffffff', stroke: '#1a3a50', strokeThickness: 5,
     }).setOrigin(0.5, 0.5).setScrollFactor(0).setDepth(10003);
 
     this.minimap.ignore([this._bannerCenter, this._bannerTitle]);
   }
 
-  _makeCloudTex(key, puffs, gridW, gridH) {
-    if (this.textures.exists(key)) return;
-    const pixelSize = 8;
-    const graphics = this.make.graphics({ x: 0, y: 0, add: false });
-    graphics.fillStyle(0xffffff, 1);
-    for (let row = 0; row < gridH; row++) {
-      for (let col = 0; col < gridW; col++) {
-        const inside = puffs.some(([cx, cy, rx, ry]) => {
-          const dx = (col + 0.5 - cx) / rx;
-          const dy = (row + 0.5 - cy) / ry;
-          return dx * dx + dy * dy <= 1;
-        });
-        if (inside) graphics.fillRect(col * pixelSize, row * pixelSize, pixelSize, pixelSize);
-      }
-    }
-    graphics.generateTexture(key, gridW * pixelSize, gridH * pixelSize);
-    graphics.destroy();
-  }
-
   _createClouds(worldWidth, worldHeight) {
-    this._makeCloudTex('cloud_sm', [[6.5, 2, 3.5, 2], [3, 3.5, 2.5, 1.5], [10, 3.5, 2.5, 1.5]], 13, 5);
-    this._makeCloudTex('cloud_md', [[10, 2.5, 5, 2.5], [3.5, 4, 3, 2], [16.5, 4, 3, 2]], 20, 6);
-    this._makeCloudTex('cloud_lg', [[13, 2.5, 7, 3], [5, 4, 4, 2.5], [9, 3.5, 4, 2.5], [17, 3.5, 4, 2.5], [21, 4, 4, 2.5]], 26, 7);
-
-    const cloudKeys = ['cloud_sm', 'cloud_sm', 'cloud_md', 'cloud_md', 'cloud_lg'];
+    const cloudKeys = ['cloud_01','cloud_02','cloud_03','cloud_04','cloud_05','cloud_06','cloud_07','cloud_08'];
     this.clouds = [];
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 60; i++) {
       const key   = Phaser.Utils.Array.GetRandom(cloudKeys);
       const cloud = this.add.image(
         Phaser.Math.Between(0, worldWidth),
         Phaser.Math.Between(0, worldHeight),
         key
-      ).setDepth(9000).setAlpha(Phaser.Math.FloatBetween(0.45, 0.8));
+      ).setDepth(9000).setAlpha(Phaser.Math.FloatBetween(0.55, 0.85)).setScale(0.5);
       cloud._driftSpeed = Phaser.Math.FloatBetween(0.3, 0.8);
       cloud._worldWidth = worldWidth;
       this.clouds.push(cloud);
@@ -365,15 +353,20 @@ class GameScene extends Phaser.Scene {
     this._nightAlpha    = 0;
 
     this._createLightTextures();
+    this._rebuildLightMask();
 
-    // Screen-space RenderTexture: fill with darkness, erase where lights are
-    const w = window.innerWidth  + 200;
-    const h = window.innerHeight + 200;
+    // Rebuild whenever the canvas is resized (e.g. browser window resize)
+    this.scale.off('resize', this._rebuildLightMask, this);
+    this.scale.on('resize',  this._rebuildLightMask, this);
+  }
+
+  _rebuildLightMask() {
+    const w = this.scale.width  + 400;
+    const h = this.scale.height + 400;
     if (this._lightMask) this._lightMask.destroy();
-    this._lightMask = this.add.renderTexture(-100, -100, w, h)
+    this._lightMask = this.add.renderTexture(-200, -200, w, h)
       .setScrollFactor(0).setDepth(9490).setOrigin(0).setVisible(false);
-
-    this.minimap.ignore(this._lightMask);
+    if (this.minimap) this.minimap.ignore(this._lightMask);
   }
 
   _showTimeLabel(text) {
@@ -437,7 +430,7 @@ class GameScene extends Phaser.Scene {
     this._lightMask.fill((this._nightR << 16) | (this._nightG << 8) | this._nightB, this._nightAlpha);
 
     const cam = this.cameras.main;
-    const ox  = 100; // compensate for the -100px origin offset of the render texture
+    const ox  = 200; // compensate for the -200px origin offset of the render texture
     const LG  = 150; // half of light_lg (300px)
     const SM  = 90;  // half of light_sm (180px)
 
@@ -465,6 +458,13 @@ class GameScene extends Phaser.Scene {
   }
 
   _scatterDecorations() {
+    const decoPool = [];
+    for (let i = 1; i <= 18; i++) decoPool.push({ key: `deco${i}`, frame: undefined });
+    for (let i = 1; i <= 4; i++) {
+      for (let f = 0; f < 8; f++) decoPool.push({ key: `bushe${i}`, frame: f });
+    }
+    for (let i = 1; i <= 4; i++) decoPool.push({ key: `rock${i}`, frame: undefined });
+
     for (let i = 0; i < this.dags.length * 8; i++) {
       const row = Phaser.Math.Between(0, this.gen.rows - 1);
       const col = Phaser.Math.Between(0, this.gen.cols - 1);
@@ -477,7 +477,8 @@ class GameScene extends Phaser.Scene {
         this.add.image(tileX, tileY, 'tree', Phaser.Math.Between(0, 11))
           .setOrigin(0.5, 1).setDepth(tileY).setScale(0.8);
       } else {
-        this.add.image(tileX, tileY - 10, `deco${Phaser.Math.Between(1, 18)}`)
+        const d = Phaser.Utils.Array.GetRandom(decoPool);
+        this.add.image(tileX, tileY - 10, d.key, d.frame)
           .setOrigin(0.5, 1).setDepth(tileY);
       }
     }
@@ -533,6 +534,39 @@ class GameScene extends Phaser.Scene {
       this.isAttacking = false;
       this.player.play('p_idle');
     });
+  }
+
+  _onDagSuccess() {
+    this.dagSuccessCount++;
+    const newLevel = Math.min(10, this.dagSuccessCount + 1);
+    if (newLevel > this._playerLevel) {
+      this._playerLevel = newLevel;
+      this._onLevelUp(newLevel);
+    }
+  }
+
+  _onLevelUp(level) {
+    const levelText = document.getElementById('level-text');
+    const levelName = document.getElementById('level-name');
+    const levelPanel = document.getElementById('level-panel');
+    const flash = document.getElementById('level-flash');
+
+    if (levelText) levelText.textContent = `LVL ${level}`;
+    if (levelName) levelName.textContent = LEVEL_NAMES[level] || '';
+
+    if (levelPanel) {
+      levelPanel.classList.remove('level-up-pulse');
+      void levelPanel.offsetWidth; // force reflow to restart animation
+      levelPanel.classList.add('level-up-pulse');
+      levelPanel.addEventListener('animationend', () => levelPanel.classList.remove('level-up-pulse'), { once: true });
+    }
+
+    if (flash) {
+      flash.style.opacity = '0.4';
+      setTimeout(() => { flash.style.opacity = '0'; }, 50);
+    }
+
+    this.showToast(`LEVEL UP!  LVL ${level} — ${LEVEL_NAMES[level] || ''}`, 'success');
   }
 
   _repositionHud() {

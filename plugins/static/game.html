@@ -21,9 +21,9 @@
         <span id="hud-dags">Loading…</span>
       </div>
       <div id="hud-hint-panel">
-        <span class="hud-hint-line">WASD: MOVE</span>
-        <span class="hud-hint-line">SPACE: ATTACK</span>
-        <span class="hud-hint-line">E: INTERACT</span>
+        <div class="hud-hint-line"><span class="hud-key">WASD</span><span class="hud-hint-desc">Move</span></div>
+        <div class="hud-hint-line"><span class="hud-key">SPC</span><span class="hud-hint-desc">Attack</span></div>
+        <div class="hud-hint-line"><span class="hud-key">E</span><span class="hud-hint-desc">Interact</span></div>
       </div>
     </div>
 
@@ -34,6 +34,18 @@
       <img id="time-moon" src="assets/ui/icons/moon.png" class="time-icon" />
     </div>
     <div id="time-label"></div>
+
+    <!-- Level panel (bottom-left) -->
+    <div id="level-panel">
+      <img id="level-icon" src="assets/ui/icons/icon_01.png" />
+      <div id="level-info">
+        <span id="level-text">LVL 1</span>
+        <span id="level-name">Wanderer</span>
+      </div>
+    </div>
+
+    <!-- Level-up flash overlay -->
+    <div id="level-flash"></div>
 
     <!-- Toast sits outside the HUD flex row -->
     <div id="toast"></div>
