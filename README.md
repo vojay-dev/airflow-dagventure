@@ -4,59 +4,32 @@
   <img src="doc/dagventure.png" alt="Dagventure" width="480" />
 </p>
 
-An Airflow 3 plugin that turns your Dag list into a playable pixel-art world. Every active Dag becomes a building on a procedurally generated island. Walk your knight around, trigger pipeline runs, read task logs, pause workflows, and destroy broken pipelines with a sword.
+An Airflow 3.1+ plugin that turns your Dag list into a playable pixel-art world. Every active Dag becomes a building on a procedurally generated island. Walk your knight around, trigger pipeline runs, read task logs, pause workflows, and destroy broken pipelines with a sword.
 
 <p align="center">
   <img src="doc/screenshots/screen1.png" alt="Dagventure world overview" width="780" />
 </p>
 
-```
-[ Browser: Phaser 3 game ]
-          │
-          │ HTTP/JSON — relative paths, same-origin session auth
-          ▼
-[ Airflow API Server: FastAPI plugin ] ──▶ serves game.html + assets
-          │
-          │ plugin also proxies log requests (requests library)
-          ▼
-[ Airflow REST API v2 ] ──▶ [ Airflow Metadata DB ]
-```
-
----
-
-## Table of Contents
-
-1. [Prerequisites](#prerequisites)
-2. [Installation](#installation)
-3. [Controls](#controls)
-4. [Screenshots](#screenshots)
-5. [How Airflow 3 Plugins Work](#how-airflow-3-plugins-work)
-6. [How the Frontend Communicates with Airflow](#how-the-frontend-communicates-with-airflow)
-7. [How Phaser 3 Works — A Beginner's Guide](#how-phaser-3-works--a-beginners-guide)
-8. [How the Procedural Map is Generated](#how-the-procedural-map-is-generated)
-9. [Architecture: File by File](#architecture-file-by-file)
-10. [Game Mechanics in Depth](#game-mechanics-in-depth)
-11. [Visual Effects](#visual-effects)
-12. [The Backend: dagventure.py Explained](#the-backend-dagventurepy-explained)
-13. [API Reference](#api-reference)
-14. [Asset Credits](#asset-credits)
-
 ---
 
 ## Prerequisites
 
-- **Airflow 3.x** (tested on Astro Runtime based on Airflow 3). This plugin uses APIs that are not available in Airflow 2.x.
+This is a fully working Astro CLI project that runs locally or can be deployed to an Astronomer Astro hosted environment. You can also use it with any Airflow 3.1+ setup.
+
+- **Airflow 3.1+**
 - Python 3.12+
-- The `apache-airflow-client` Python package (for the log proxy endpoint)
-- The Tiny Swords pixel art asset pack (included in `plugins/assets/`)
+- The `apache-airflow-client` Python package
+- (optional but recommended) Astro CLI
 
 ---
 
+## Use Astro CLI
+
+When using the Astro CLI, simply start the project with `astro dev start`.
+
 ## Installation
 
-### 1. Copy the plugin directory
-
-Copy the entire `plugins/` directory into the `plugins/` folder of your Airflow / Astro project. The assets are bundled inside `plugins/assets/`, so there is nothing else to copy.
+To install the plugin to an existing Airflow setup, copy the entire `plugins/` directory into the `plugins/` folder of your Airflow / Astro project. The assets are bundled inside `plugins/assets/`, so there is nothing else to copy.
 
 ```
 your-airflow-project/
@@ -68,19 +41,7 @@ your-airflow-project/
 └── ...
 ```
 
-### 2. Restart the API server
-
-```bash
-# Local Astro development environment
-astro dev restart
-
-# Plain Airflow (Docker Compose)
-docker compose restart airflow-webserver airflow-apiserver
-```
-
-Airflow auto-discovers plugins: any `.py` file in `plugins/` that defines an `AirflowPlugin` subclass is loaded automatically. No extra config required.
-
-### 3. Open the game
+## Open the game
 
 After restart, a **"Dagventure"** entry appears in the Airflow navigation bar. Click it, or go directly to:
 
@@ -88,7 +49,7 @@ After restart, a **"Dagventure"** entry appears in the Airflow navigation bar. C
 http://localhost:8080/dagventure/game
 ```
 
-The game loads your live Dag list and builds the world. If the API is unreachable (e.g. running the HTML file outside Airflow), a demo world with 15 placeholder Dags is shown instead.
+The game loads your live Dag list and builds the world.
 
 ---
 
@@ -96,7 +57,7 @@ The game loads your live Dag list and builds the world. If the API is unreachabl
 
 | Key | Action |
 |-----|--------|
-| `WASD` / Arrow keys | Move the knight |
+| `WASD` / `Arrow keys` | Move the knight |
 | `E` | Interact — opens the Dag menu when near a building, or talks to the goblin worker when the Dag is running |
 | `Space` | Attack — deals 1 HP to the nearest building or sheep within range |
 | `ESC` | Close log modal (first press), then close Dag menu (second press) |
@@ -111,7 +72,7 @@ The game loads your live Dag list and builds the world. If the API is unreachabl
   <img src="doc/screenshots/screen6.png" width="48%" alt="Night scene with dynamic lighting" />
 </p>
 <p align="center">
-  <em>The procedurally generated island world (day) &nbsp;·&nbsp; Dynamic lighting at night — the player's torch cuts through the darkness</em>
+  <em>The procedurally generated island world (day) &nbsp;·&nbsp; Dynamic lighting at night, the player's torch cuts through the darkness</em>
 </p>
 
 <p align="center">
@@ -134,15 +95,15 @@ The game loads your live Dag list and builds the world. If the API is unreachabl
 
 ---
 
-## How Airflow 3 Plugins Work
+## About plugins
 
-If you are new to Airflow plugins, this section explains the full picture from scratch.
+If you are new to Airflow plugins, this section explains the basics.
 
 ### What is a plugin?
 
 A plugin is a Python file (or package) you drop in the `plugins/` folder of your Airflow project. When Airflow starts, it scans that folder and imports every `.py` file it finds. If the file defines a class that inherits from `AirflowPlugin`, Airflow loads it automatically. No extra config, no pip install, no restart script — just copy the file.
 
-Airflow 3 added a first-class feature: a plugin can register a **FastAPI application** that runs *inside* the Airflow API server process. That means your plugin gets a real HTTP server at a custom URL path, with zero extra infrastructure.
+Airflow 3.1 added a first-class feature: a plugin can register a **FastAPI application**. That means your plugin gets a real HTTP server at a custom URL path, with zero extra infrastructure.
 
 ### The plugin class
 
@@ -175,39 +136,17 @@ class MyPlugin(AirflowPlugin):
     }]
 ```
 
-Airflow mounts the FastAPI app at `/my-plugin`. Your route `/hello` becomes `/my-plugin/hello`. The `external_views` entry adds a clickable link to the Airflow navigation bar that points to that URL.
-
-### Why `href` must never have a leading slash
-
-On Astronomer's managed Astro platform, the Airflow API server sits behind a reverse proxy that adds its own URL prefix. If you write `href: "/my-plugin/hello"`, the browser will navigate to exactly `/my-plugin/hello` — ignoring the proxy prefix — and get a 404.
-
-If you write `href: "my-plugin/hello"` (no leading slash), the browser resolves the URL relative to the current Airflow base, which works whether you're running locally, on Astro, or on any other deployment.
-
-The same rule applies to every resource loaded from `game.html`:
-
-```html
-<!-- WRONG — breaks on Astro -->
-<script src="/dagventure/static/scene.js"></script>
-
-<!-- CORRECT — works locally and on Astro -->
-<script src="static/scene.js"></script>
-```
-
-### Authentication
-
-The plugin inherits the Airflow session. A user who has already logged into the Airflow UI is automatically authenticated when the game makes API calls — the browser sends the session cookie automatically on every same-origin `fetch()`. No custom JWT, no API key, no extra headers needed.
-
 ---
 
-## How the Frontend Communicates with Airflow
+## Airflow communication
 
 ### All calls go through the plugin backend
 
-The game frontend never talks to Airflow's API server directly. Every call goes to the plugin's own endpoints, which then call Airflow internally using the `apache-airflow-client` Python library with a cached JWT token. This gives the plugin control over the response shape — normalizing state enums, reformatting structured log output, etc.
+The game frontend never talks to Airflow's API server directly. Every call goes to the plugin's own endpoints, which then call Airflow internally using the `apache-airflow-client` Python library with a cached JWT token. This gives the plugin control over the response shape, normalizing state enums, reformatting structured log output, etc.
 
 ```javascript
 // In api.js
-const BASE = 'api';  // relative URL — resolves to /dagventure/api/
+const BASE = 'api';
 
 async function getDags(limit = 100) {
   const response = await fetch(`${BASE}/dags?limit=${limit}`);
@@ -238,7 +177,7 @@ lines = [f"[{msg['timestamp']}] {msg['event']}" for msg in messages if msg.get('
 return "\n".join(lines)
 ```
 
-Airflow 3 uses **structured logging**: instead of returning a plain text file, the log endpoint returns a JSON list of `StructuredLogMessage` objects, each with an `event` (the message text) and a `timestamp`. The backend formats these into readable lines before sending them to the game.
+Airflow uses **structured logging**: instead of returning a plain text file, the log endpoint returns a JSON list of `StructuredLogMessage` objects, each with an `event` (the message text) and a `timestamp`. The backend formats these into readable lines before sending them to the game.
 
 ### The plugin API routes
 
@@ -283,7 +222,7 @@ These normalized states then drive building appearance:
 
 ---
 
-## How Phaser 3 Works — A Beginner's Guide
+## About Phaser 3
 
 If you have never used a game framework before, this section explains the core concepts used in this project.
 
@@ -297,7 +236,7 @@ Phaser is a JavaScript game framework that runs in the browser. It handles:
 - Animations (cycling through frames of a spritesheet)
 - Cameras (viewport, zoom, follow)
 
-Dagventure loads Phaser from a CDN — there is no build step, no `npm install`, no bundler.
+Dagventure loads Phaser from a CDN.
 
 ### The game loop
 
@@ -363,19 +302,19 @@ The warrior spritesheet (`warrior_blue.png`) is a 1152×1536 image with 6 column
 
 Phaser's Arcade Physics engine handles movement and collision. There are two kinds of physics bodies:
 
-- **Dynamic bodies** — can move, are affected by velocity and collisions (the player, sheep, goblin workers)
-- **Static bodies** — never move, but block dynamic bodies (water tiles, trees, buildings)
+- **Dynamic bodies**: can move, are affected by velocity and collisions (the player, sheep, goblin workers)
+- **Static bodies**: never move, but block dynamic bodies (water tiles, trees, buildings)
 
 ```javascript
-// Dynamic sprite — can move
+// Dynamic sprite: can move
 this.player = this.physics.add.sprite(x, y, 'warrior');
 this.player.setVelocity(280, 0);  // move right at 280 pixels/second
 
-// Static group — immovable obstacles
+// Static group: immovable obstacles
 this.obstacles = this.physics.add.staticGroup();
 this.obstacles.create(x, y, null).setVisible(false).body.setSize(64, 64);
 
-// Wire up collision — player bounces off obstacles
+// Wire up collision: player bounces off obstacles
 this.physics.add.collider(this.player, this.obstacles);
 ```
 
@@ -402,8 +341,8 @@ tree.refreshBody();  // ← required after setOrigin/setScale on static bodies
 
 Phaser supports multiple cameras looking at the same game world simultaneously. This project uses two:
 
-1. **Main camera** — follows the player with a small lag (0.1 lerp factor), covers the full screen
-2. **Minimap camera** — a small 200×200 viewport in the bottom-right corner, zoomed out to 12%
+1. **Main camera**: follows the player with a small lag (0.1 lerp factor), covers the full screen
+2. **Minimap camera**: a small 200×200 viewport in the bottom-right corner, zoomed out to 12%
 
 ```javascript
 // Main camera follows the player
@@ -451,7 +390,7 @@ This allows the chat bubble above each building to grow and shrink based on text
 
 ---
 
-## How the Procedural Map is Generated
+## Procedural map generation
 
 The map is generated fresh every time the game loads (or when the Dag count changes). The process happens entirely in `map-generator.js` and uses no external libraries.
 
@@ -568,36 +507,29 @@ The minimum-distance check prevents buildings from overlapping or being placed s
 
 ---
 
-## Architecture: File by File
+## Project overview
 
 ```
 plugins/
-├── dagventure.py       ← FastAPI app + AirflowPlugin registration
-├── assets/                ← Pixel art (served at /dagventure/assets/)
-│   ├── factions/knights/  ← Player sprite, building sprites
-│   ├── factions/goblins/  ← Goblin worker sprite
-│   ├── terrain/           ← Ground tiles, water, pixel-art clouds (01–08)
-│   ├── resources/         ← Trees, sheep
-│   ├── effects/           ← Explosion animation
-│   ├── ui/                ← Banners, ribbons, buttons, icons, pointers
-│   └── deco/              ← Decorative objects 01–18, bushes (bushe1–4), rocks (rock1–4)
+├── dagventure.py          ← FastAPI app + AirflowPlugin registration
+├── assets/                ← Assets (served at /dagventure/assets/)
 └── static/                ← Frontend (served at /dagventure/static/)
-    ├── game.html          ← Entry point — loads Phaser CDN + scripts in order
+    ├── game.html          ← Entry point: loads Phaser CDN + scripts in order
     ├── constants.js       ← Shared constants and state lookup tables
     ├── api.js             ← AirflowApi wrapper (all fetch calls)
-    ├── map-generator.js   ← MapGenerator class — procedural island generation
+    ├── map-generator.js   ← MapGenerator class: procedural island generation
     ├── entities.js        ← DagBuilding, ChatBubble, Sheep classes
-    ├── scene.js           ← GameScene — the Phaser scene (preload/create/update)
+    ├── scene.js           ← GameScene: the Phaser scene (preload/create/update)
     ├── ui.js              ← DOM bridge functions + Phaser.Game boot
     └── game.css           ← HUD, menus, pixel-art panels
 ```
 
 ### Script loading order
 
-Scripts are loaded in dependency order because they share globals — there is no bundler or module system. Each script must be loaded before the scripts that depend on it:
+Scripts are loaded in dependency order because they share globals, there is no bundler or module system. Each script must be loaded before the scripts that depend on it:
 
 ```html
-    <script src="static/constants.js"></script>    <!-- PF, PLAYER_SPEED, STATE_* maps -->
+<script src="static/constants.js"></script>     <!-- PF, PLAYER_SPEED, STATE_* maps -->
 <script src="static/api.js"></script>           <!-- AirflowApi -->
 <script src="static/map-generator.js"></script> <!-- MapGenerator -->
 <script src="static/entities.js"></script>      <!-- DagBuilding, ChatBubble, Sheep -->
@@ -605,7 +537,7 @@ Scripts are loaded in dependency order because they share globals — there is n
 <script src="static/ui.js"></script>            <!-- openMenu, viewLog, boots Phaser.Game -->
 ```
 
-### `constants.js` — shared lookup tables
+### `constants.js` shared lookup tables
 
 Defines global constants used across all other files:
 
@@ -628,7 +560,7 @@ const LEVEL_NAMES = {
 };
 ```
 
-`getSpriteForDag(dag)` is also here — it maps a Dag's tags and state to the correct building texture key:
+`getSpriteForDag(dag)` is also here, it maps a Dag's tags and state to the correct building texture key:
 
 ```javascript
 function getSpriteForDag(dag) {
@@ -646,7 +578,7 @@ function getSpriteForDag(dag) {
 }
 ```
 
-### `api.js` — the Airflow API wrapper
+### `api.js` the Airflow API wrapper
 
 All HTTP calls to the plugin backend live in one place. The `BASE` constant is a relative path that resolves correctly on any deployment:
 
@@ -664,13 +596,13 @@ const AirflowApi = (() => {
 })();
 ```
 
-The module is wrapped in an IIFE (Immediately Invoked Function Expression) — the `(() => { ... })()` pattern. This keeps all the helper functions private and only exposes the public API through the returned object.
+The module is wrapped in an IIFE (Immediately Invoked Function Expression), the `(() => { ... })()` pattern. This keeps all the helper functions private and only exposes the public API through the returned object.
 
-### `entities.js` — game objects
+### `entities.js` game objects
 
 Contains three classes:
 
-**`ChatBubble`** — a floating speech bubble above each building showing the Dag state. Built with a NineSlice ribbon and a text object:
+**`ChatBubble`**: a floating speech bubble above each building showing the Dag state. Built with a NineSlice ribbon and a text object:
 
 ```javascript
 class ChatBubble extends Phaser.GameObjects.Container {
@@ -683,44 +615,44 @@ class ChatBubble extends Phaser.GameObjects.Container {
 }
 ```
 
-**`DagBuilding`** — wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the Dag is running, and manages smoke particle emitters. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
+**`DagBuilding`**: wraps a building sprite, its label, chat bubble, health hearts, and the four corner bracket indicators. Also owns the goblin worker sprite when the Dag is running, and manages smoke particle emitters. The corner brackets pulse with a sine tween using `scene.tweens.add()`.
 
-**`Sheep`** — a wandering NPC. Uses a timer event (`scene.time.addEvent`) to periodically pick a random velocity and switch between idle and walk animations. If killed three times total, all Dags are deleted.
+**`Sheep`**: a wandering NPC. Uses a timer event (`scene.time.addEvent`) to periodically pick a random velocity and switch between idle and walk animations. If killed three times total, all Dags are deleted.
 
 The module-level helper `_spawnDamageText(scene, x, y)` is shared by both `DagBuilding` and `Sheep` to avoid duplicating the floating `-1` animation logic.
 
-### `scene.js` — the Phaser scene
+### `scene.js` the Phaser scene
 
 `GameScene` extends `Phaser.Scene` and is the heart of the game. Key methods:
 
-- **`preload()`** — loads all assets
-- **`create()`** — sets up input handlers, starts the 10-second Dag polling timer, calls `_fetchDags()` immediately
-- **`_fetchDags()`** — fetches all Dags + their latest runs in parallel, normalizes states, then either builds the world from scratch (first load) or updates existing buildings incrementally (subsequent polls)
-- **`_initWorld(dags)`** — tears down and rebuilds the entire Phaser scene: generates the map, places tiles, spawns buildings, spawns the player and sheep, sets up cameras
-- **`update()`** — called every frame: handles movement input, Y-sorts sprites, drifts clouds, finds the nearest building within interact range, advances the day/night cycle
-- **`_repositionHud()`** — called from `update()` to keep screen-space UI anchored correctly on window resize
-- **`_handleAttack()`** — deals damage to nearby buildings/sheep when Space is pressed
-- **`_handleInteract()`** — opens the appropriate menu when E is pressed
-- **`_initDayNight()` / `_updateDayNight()` / `_updateLightMask()`** — day/night cycle: compute overlay colour from cycle position, fill the `RenderTexture`, erase light holes at player and goblin positions
-- **`_rebuildLightMask()`** — (re)creates the `RenderTexture` at the correct canvas size; called once on init and again whenever the browser window is resized
-- **`_createLightTextures()`** — generates radial gradient canvas textures for the two light sizes
-- **`_onDagSuccess()` / `_onLevelUp(level)`** — level progression: increments the success counter, checks for a rank-up, updates the HUD panel, triggers flash and toast
-- **`showToast(msg, type)`** — shows a timed ribbon notification at the top of the screen
+- **`preload()`** loads all assets
+- **`create()`** sets up input handlers, starts the 10-second Dag polling timer, calls `_fetchDags()` immediately
+- **`_fetchDags()`** fetches all Dags + their latest runs in parallel, normalizes states, then either builds the world from scratch (first load) or updates existing buildings incrementally (subsequent polls)
+- **`_initWorld(dags)`** tears down and rebuilds the entire Phaser scene: generates the map, places tiles, spawns buildings, spawns the player and sheep, sets up cameras
+- **`update()`** called every frame: handles movement input, Y-sorts sprites, drifts clouds, finds the nearest building within interact range, advances the day/night cycle
+- **`_repositionHud()`** called from `update()` to keep screen-space UI anchored correctly on window resize
+- **`_handleAttack()`** deals damage to nearby buildings/sheep when Space is pressed
+- **`_handleInteract()`** opens the appropriate menu when E is pressed
+- **`_initDayNight()` / `_updateDayNight()` / `_updateLightMask()`** day/night cycle: compute overlay colour from cycle position, fill the `RenderTexture`, erase light holes at player and goblin positions
+- **`_rebuildLightMask()`** (re)creates the `RenderTexture` at the correct canvas size; called once on init and again whenever the browser window is resized
+- **`_createLightTextures()`** generates radial gradient canvas textures for the two light sizes
+- **`_onDagSuccess()` / `_onLevelUp(level)`** level progression: increments the success counter, checks for a rank-up, updates the HUD panel, triggers flash and toast
+- **`showToast(msg, type)`** shows a timed ribbon notification at the top of the screen
 
-### `ui.js` — DOM bridge and log viewer
+### `ui.js` DOM bridge and log viewer
 
 The game's menus and log panels are regular HTML/CSS elements, not Phaser objects. `ui.js` bridges the Phaser game world (JavaScript) with the DOM (HTML):
 
-- **`openMenu(dag)`** — shows the Dag interaction panel with Trigger/Pause/Unpause buttons
-- **`openConversation(dag)`** — shows the goblin dialogue panel with task instance list
-- **`viewLog(dagId, runId, taskId, tryNumber)`** — fetches formatted log text, runs it through a custom `highlight.js` syntax highlighter that colors timestamps, log levels, error keywords, and Python file paths, then injects the highlighted HTML into the log modal
+- **`openMenu(dag)`** shows the Dag interaction panel with Trigger/Pause/Unpause buttons
+- **`openConversation(dag)`** shows the goblin dialogue panel with task instance list
+- **`viewLog(dagId, runId, taskId, tryNumber)`** fetches formatted log text, runs it through a custom `highlight.js` syntax highlighter that colors timestamps, log levels, error keywords, and Python file paths, then injects the highlighted HTML into the log modal
 - Boots `new Phaser.Game(...)` after `document.fonts.ready` resolves (prevents the pixel font from flashing as a fallback font on the first frame)
 
 ---
 
-## Game Mechanics in Depth
+## Game mechanics
 
-### The 10-second Dag polling loop
+### Dag polling loop
 
 On load, `_fetchDags()` is called immediately. It's also scheduled to run every 10 seconds:
 
@@ -794,8 +726,6 @@ this._bracketTween = this.scene.tweens.add({
 });
 ```
 
-The corner sprites use `setOrigin()` set to their respective corner (top-left has origin 0,0; bottom-right has origin 1,1). When the scale increases, the image grows toward the center of the building — giving the "arms reaching inward" pulse effect.
-
 ### Knight level progression
 
 Every successful Dag run advances the player's knight rank. The current level and rank name are shown in the top-left HUD panel, just below the Dag counter. Levels run from 1 (Wanderer) to 10 (MAX RANK), with a new title unlocking at each step.
@@ -815,9 +745,9 @@ _onDagSuccess() {
 
 A level-up triggers three simultaneous feedback events:
 
-1. **Toast banner** — `"LEVEL UP! LVL X — RankName"` using the blue ribbon style
-2. **White screen flash** — `#level-flash` (a full-screen CSS overlay) fades in to 40% opacity then back to transparent over 0.4 seconds
-3. **HUD pulse** — a `levelUpPulse` CSS animation scales the level panel from 1 → 1.3 → 1 over 600 ms
+1. **Toast banner**: `"LEVEL UP! LVL X — RankName"` using the blue ribbon style
+2. **White screen flash**: `#level-flash` (a full-screen CSS overlay) fades in to 40% opacity then back to transparent over 0.4 seconds
+3. **HUD pulse**: a `levelUpPulse` CSS animation scales the level panel from 1 → 1.3 → 1 over 600 ms
 
 The HUD panel updates its text immediately:
 
@@ -826,9 +756,9 @@ document.getElementById('level-text').textContent = `LVL ${level}`;
 document.getElementById('level-name').textContent  = LEVEL_NAMES[level];
 ```
 
-### Pixel-art clouds
+### Clouds
 
-Clouds use real pixel-art sprites from the Tiny Swords asset pack — eight variants loaded from `assets/terrain/clouds/clouds_01.png` through `clouds_08.png`. In `_createClouds()`, 60 cloud instances are scattered at random world positions, each picking a random variant:
+Clouds use real pixel-art sprites from the Tiny Swords asset pack. Eight variants loaded from `assets/terrain/clouds/clouds_01.png` through `clouds_08.png`. In `_createClouds()`, 60 cloud instances are scattered at random world positions, each picking a random variant:
 
 ```javascript
 const key = Phaser.Utils.Array.GetRandom(
@@ -846,7 +776,7 @@ Each cloud has a `velX` drift speed. Every frame in `update()`, the position adv
 
 ### Diagonal movement normalization
 
-Without correction, moving diagonally (pressing W+D simultaneously) would be faster than moving straight — you'd be adding two full-speed velocity vectors. The game normalizes by multiplying by `1/√2 ≈ 0.707`:
+Without correction, moving diagonally (pressing W+D simultaneously) would be faster than moving straight, you'd be adding two full-speed velocity vectors. The game normalizes by multiplying by `1/√2 ≈ 0.707`:
 
 ```javascript
 if (velocityX !== 0 && velocityY !== 0) {
@@ -859,7 +789,7 @@ This keeps the player's actual speed constant regardless of direction.
 
 ---
 
-## Visual Effects
+## Visuals
 
 ### Toast notifications for Dag state changes
 
@@ -914,7 +844,7 @@ The `smoke_pixel` texture is a 4×4 grey square generated at runtime via `Graphi
 
 ### Day/night cycle and dynamic light sources
 
-The game runs a 2.5-minute cycle that smoothly transitions from day through sunset, night, and back to dawn. This is implemented with a screen-space `RenderTexture` (`_lightMask`) rather than a DOM overlay, because it enables dynamic light sources.
+The game runs cycle that smoothly transitions from day through sunset, night, and back to dawn. This is implemented with a screen-space `RenderTexture` (`_lightMask`) rather than a DOM overlay, because it enables dynamic light sources.
 
 **How the darkness overlay works:**
 
@@ -950,7 +880,7 @@ grad.addColorStop(0.65, 'rgba(255,255,255,0.30)'); // soft falloff
 grad.addColorStop(1,    'rgba(255,255,255,0.0)');  // darkness at the edge
 ```
 
-When this white gradient is used with `rt.erase()`, it removes the corresponding amount of the darkness fill — creating a soft glowing light source effect.
+When this white gradient is used with `rt.erase()`, it removes the corresponding amount of the darkness fill, creating a soft glowing light source effect.
 
 **Why `setScrollFactor(0)` and the resize listener:**
 
@@ -974,7 +904,7 @@ this.scale.on('resize', this._rebuildLightMask, this);
 | 0.80 – 0.95 | Sunrise | Amber fades to transparent |
 | 0.95 – 1.00 | Day | Invisible again |
 
-### Day/night time indicator (bottom HUD)
+### Day/night time indicator
 
 A bottom-centre panel shows where in the cycle the game currently is. A sun icon on the left represents day; a moon icon on the right represents night. A small gold square marker slides along the track between them:
 
@@ -984,7 +914,7 @@ const markerPos = t <= 0.55 ? t / 0.55 : 1 - (t - 0.55) / 0.45;
 document.getElementById('time-marker').style.left = `${(markerPos * 100).toFixed(1)}%`;
 ```
 
-The panel uses the same `carved_9slides.png` CSS `border-image` as the other HUD panels for visual consistency. The sliding marker is a pure CSS element — a `10×14px` gold square (`#ffe066`) with a dark pixel-art border, positioned absolutely inside the flex track. No image asset needed for the marker.
+The panel uses the same `carved_9slides.png` CSS `border-image` as the other HUD panels for visual consistency. The sliding marker is a pure CSS element, a `10×14px` gold square (`#ffe066`) with a dark pixel-art border, positioned absolutely inside the flex track. No image asset needed for the marker.
 
 Phase transition labels ("SUNSET APPROACHES...", "NIGHTFALL", "DAWN BREAKS") appear at `#time-label` below the bar for 3 seconds using `_showTimeLabel()`.
 
@@ -1013,7 +943,7 @@ Every 4 pixels, one pixel row gets a 4% black overlay, simulating the CRT scanli
 
 ---
 
-## The Backend: dagventure.py Explained
+## The Backend: dagventure.py
 
 ### JWT token management
 
@@ -1049,7 +979,7 @@ The `_token_lock` is a `threading.Lock` that prevents two concurrent requests fr
 
 ### Running sync code in an async FastAPI endpoint
 
-FastAPI is async. The `airflow_client` SDK and `requests` library are sync (blocking). You can't call a blocking function directly inside an `async def` endpoint — it would block the entire event loop and freeze all other requests.
+FastAPI is async. The `airflow_client` SDK and `requests` library are sync (blocking). You can't call a blocking function directly inside an `async def` endpoint, it would block the entire event loop and freeze all other requests.
 
 The solution is `asyncio.to_thread()`, which runs a blocking function in a separate thread pool thread:
 
