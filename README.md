@@ -81,7 +81,7 @@ The game loads your live Dag list and builds the world.
   <img src="doc/screenshots/screen2.png" width="48%" alt="Dag interaction menu" />
 </p>
 <p align="center">
-  <em>Corner brackets pulse when you're close enough to interact &nbsp;·&nbsp; Trigger a run, pause, or unpause from the Dag menu</em>
+  <em>Indicator when you're close enough to interact &nbsp;·&nbsp; Trigger a run, pause, or unpause from the Dag menu</em>
 </p>
 
 <p align="center">
@@ -208,17 +208,6 @@ if (rawDag.is_paused) {
     state = latestRun.state || 'never_run';  // use Airflow's state directly
 }
 ```
-
-These normalized states then drive building appearance:
-
-| State | Building color | Goblin worker? |
-|-------|---------------|----------------|
-| `success` | Blue | No |
-| `running` | Yellow | Yes — spawns next to building |
-| `failed` | Construction site | No |
-| `paused` | Purple | No |
-| `queued` | Construction site | No |
-| `never_run` | Blue | No |
 
 ---
 
