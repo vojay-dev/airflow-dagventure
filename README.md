@@ -35,8 +35,8 @@ To install the plugin to an existing Airflow setup, copy the entire `plugins/` d
 your-airflow-project/
 ├── dags/
 ├── plugins/
-│   ├── dagventure.py          ← plugin entry point
-│   ├── assets/                   ← pixel art assets (bundled)
+│   ├── dagventure.py             ← plugin entry point
+│   ├── assets/                   ← assets
 │   └── static/                   ← JS, CSS, HTML
 └── ...
 ```
